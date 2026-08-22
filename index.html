@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -289,6 +290,19 @@
     background:var(--panel-2);color:var(--text);font-size:13.5px;font-family:inherit;resize:vertical;
   }
   .field input:focus-visible, .field textarea:focus-visible{outline:2px solid var(--amber);}
+  .field input.url-fallback{margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px;}
+  .img-row{display:flex;gap:12px;align-items:center;}
+  .img-thumb{
+    width:104px;aspect-ratio:16/9;flex-shrink:0;border-radius:7px;overflow:hidden;
+    border:1px solid var(--line);background:var(--panel-2);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .img-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .img-thumb span{font-size:10px;color:var(--muted);text-align:center;padding:4px;
+    font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.04em;}
+  .img-controls{display:flex;flex-direction:column;gap:8px;}
+  .img-controls .btn{text-align:center;font-size:12.5px;padding:8px 14px;}
+  .img-controls .img-clear{color:var(--muted);}
   .admin-actions{
     display:flex;gap:10px;flex-wrap:wrap;
     padding:16px 24px;border-top:1px solid var(--line);
@@ -553,7 +567,7 @@
         + field("steps."+i+".title","제목", step.title)
         + field("steps."+i+".desc","설명", step.desc, true)
         + field("steps."+i+".caption","캡션", step.caption)
-        + field("steps."+i+".image","이미지 URL (비워두면 기본 그래픽)", step.image)
+        + imageField("steps."+i+".image","이미지", step.image, i)
         + '</div>';
     });
 
@@ -566,8 +580,79 @@
     body.querySelectorAll("[data-path]").forEach(function(input){
       input.addEventListener("input", function(){
         setByPath(state.content, input.getAttribute("data-path"), input.value);
+        if(input.classList.contains("url-fallback")){
+          updateThumb(input.getAttribute("data-idx"), input.value);
+        }
       });
     });
+
+    body.querySelectorAll('input[type="file"][data-idx]').forEach(function(fileInput){
+      fileInput.addEventListener("change", function(){
+        var idx = fileInput.getAttribute("data-idx");
+        var file = fileInput.files && fileInput.files[0];
+        if(!file) return;
+        if(!/^image\//.test(file.type)){
+          showToast("이미지 파일만 선택할 수 있습니다");
+          fileInput.value = "";
+          return;
+        }
+        resizeImageFile(file, 1600, 0.85, function(dataUrl){
+          if(!dataUrl){
+            showToast("이미지를 불러오지 못했습니다");
+            return;
+          }
+          setByPath(state.content, "steps."+idx+".image", dataUrl);
+          var urlInput = document.getElementById("f_steps_"+idx+"_image");
+          if(urlInput) urlInput.value = dataUrl;
+          updateThumb(idx, dataUrl);
+          fileInput.value = "";
+        });
+      });
+    });
+
+    body.querySelectorAll(".img-clear[data-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var idx = btn.getAttribute("data-idx");
+        setByPath(state.content, "steps."+idx+".image", "");
+        var urlInput = document.getElementById("f_steps_"+idx+"_image");
+        if(urlInput) urlInput.value = "";
+        updateThumb(idx, "");
+      });
+    });
+  }
+
+  function updateThumb(idx, value){
+    var thumb = document.getElementById("thumb_"+idx);
+    if(!thumb) return;
+    thumb.innerHTML = (value && value.trim())
+      ? '<img src="'+escapeAttr(value)+'" alt="">'
+      : '<span>기본 그래픽</span>';
+  }
+
+  function resizeImageFile(file, maxDim, quality, cb){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        var scale = Math.min(1, maxDim / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement("canvas");
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, cw, ch);
+        try{
+          cb(canvas.toDataURL("image/jpeg", quality));
+        }catch(err){
+          cb(null);
+        }
+      };
+      img.onerror = function(){ cb(null); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function(){ cb(null); };
+    reader.readAsDataURL(file);
   }
 
   function field(path, label, value, isTextarea){
@@ -579,6 +664,26 @@
     }
     return '<div class="field"><label for="'+id+'">'+label+'</label>'
       + '<input type="text" id="'+id+'" data-path="'+path+'" value="'+v+'"></div>';
+  }
+
+  function imageField(path, label, value, idx){
+    var id = "f_"+path.replace(/\./g,"_");
+    var hasImg = value && value.trim();
+    return '<div class="field">'
+      + '<label>'+label+'</label>'
+      + '<div class="img-row">'
+      +   '<div class="img-thumb" id="thumb_'+idx+'">'
+      +     (hasImg ? '<img src="'+escapeAttr(value)+'" alt="">' : '<span>기본 그래픽</span>')
+      +   '</div>'
+      +   '<div class="img-controls">'
+      +     '<label class="btn file-btn" for="file_'+idx+'">이미지 선택</label>'
+      +     '<input type="file" id="file_'+idx+'" data-idx="'+idx+'" accept="image/*" hidden>'
+      +     '<button type="button" class="btn img-clear" data-idx="'+idx+'">기본 그래픽으로</button>'
+      +   '</div>'
+      + '</div>'
+      + '<input type="text" class="url-fallback" id="'+id+'" data-path="'+path+'" data-idx="'+idx+'" '
+      +   'value="'+escapeAttr(value)+'" placeholder="또는 이미지 URL 직접 입력">'
+      + '</div>';
   }
 
   function setByPath(obj, path, value){
@@ -635,9 +740,13 @@
   document.getElementById("adminClose").addEventListener("click", function(){ close("adminOverlay"); });
 
   document.getElementById("saveBtn").addEventListener("click", function(){
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content));
-    render();
-    showToast("저장했습니다");
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content));
+      render();
+      showToast("저장했습니다");
+    }catch(err){
+      showToast("저장 용량이 가득 찼습니다. 이미지를 줄이거나 URL로 넣어주세요");
+    }
   });
 
   document.getElementById("exportBtn").addEventListener("click", function(){
