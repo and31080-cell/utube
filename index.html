@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>유튜브, 자동화 가이드 — Lecture Notes</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+
+<style>
+  :root{
+    --ink:#121214;
+    --panel:#1B1B1F;
+    --panel-2:#202024;
+    --text:#ECEAE3;
+    --muted:#9A968D;
+    --line:rgba(236,234,227,0.14);
+    --amber:#FFB020;
+    --teal:#49B7AE;
+    --rec:#FF5D5D;
+    --radius:14px;
+    --maxw:900px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Pretendard', -apple-system, sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--amber);color:#181818;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  .mono{font-family:'JetBrains Mono', ui-monospace, monospace;}
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 24px;
+    background:rgba(18,18,20,0.72);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;letter-spacing:0.12em;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .brand b{color:var(--text);}
+  .admin-trigger{
+    width:38px;height:38px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color .2s ease, transform .2s ease;
+    flex-shrink:0;
+  }
+  .admin-trigger:hover{border-color:var(--amber);transform:translateY(-1px);}
+  .admin-trigger:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  .admin-trigger span{
+    width:6px;height:6px;border-radius:50%;background:var(--amber);
+  }
+
+  /* ---------- hero ---------- */
+  .hero{
+    max-width:var(--maxw);margin:0 auto;
+    padding:88px 24px 64px;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--muted);
+    display:flex;align-items:center;gap:8px;margin:0 0 22px;
+  }
+  .rec-dot{
+    width:7px;height:7px;border-radius:50%;background:var(--rec);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  h1{
+    font-size:clamp(34px,6vw,58px);
+    line-height:1.12;
+    margin:0 0 22px;
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  h1 .accent{
+    display:block;
+    font-family:'Noto Serif KR',serif;
+    font-weight:700;
+    line-height:1.2;
+    color:var(--amber);
+    margin-top:6px;
+  }
+  .lede{
+    font-size:17px;color:var(--muted);max-width:52ch;margin:0 0 34px;
+  }
+  .cta{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:14px 22px;
+    border:1px solid var(--amber);
+    border-radius:999px;
+    text-decoration:none;
+    font-weight:600;font-size:14px;
+    color:var(--ink);background:var(--amber);
+    transition:transform .2s ease, box-shadow .2s ease;
+  }
+  .cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,176,32,0.25);}
+  .cta:focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
+  .hero-meta{
+    margin-top:40px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;color:var(--muted);
+    display:flex;gap:18px;flex-wrap:wrap;
+    border-top:1px solid var(--line);padding-top:18px;
+  }
+  .hero-meta b{color:var(--teal);}
+
+  /* ---------- timeline ---------- */
+  .timeline{
+    max-width:var(--maxw);margin:0 auto;padding:20px 24px 40px;
+    position:relative;
+  }
+  .timeline::before{
+    content:"";position:absolute;left:47px;top:0;bottom:0;
+    width:1px;background:var(--line);
+  }
+  @media (max-width:640px){.timeline::before{left:27px;}}
+
+  .step{
+    position:relative;
+    display:grid;
+    grid-template-columns:96px 1fr;
+    gap:0 28px;
+    padding:44px 0;
+    opacity:0;transform:translateY(18px);
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .step.in-view{opacity:1;transform:translateY(0);}
+  .step:first-child{padding-top:8px;}
+  @media (max-width:640px){.step{grid-template-columns:56px 1fr;}}
+
+  .step-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+  }
+  .step-num .dot{
+    width:15px;height:15px;border-radius:50%;
+    background:var(--amber);
+    border:3px solid var(--ink);
+    box-shadow:0 0 0 1px var(--line);
+    flex-shrink:0;
+  }
+  .step-num .tc{color:var(--muted);writing-mode:horizontal-tb;}
+
+  .step-body h2{
+    font-size:22px;margin:0 0 12px;font-weight:700;letter-spacing:-0.01em;
+  }
+  .step-body p{
+    color:var(--muted);font-size:15px;margin:0 0 24px;max-width:60ch;
+  }
+
+  /* ---------- 16:9 frame ---------- */
+  figure.frame{margin:0;}
+  .frame-16x9{
+    position:relative;
+    width:100%;
+    aspect-ratio:16/9;
+    border-radius:var(--radius);
+    overflow:hidden;
+    border:1px solid var(--line);
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(73,183,174,0.14), transparent 55%),
+      radial-gradient(120% 120% at 0% 100%, rgba(255,176,32,0.14), transparent 55%),
+      var(--panel);
+  }
+  .frame-16x9 img{
+    width:100%;height:100%;object-fit:cover;display:block;
+  }
+  .frame-grid{
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:40px 40px;
+    opacity:0.35;
+  }
+  .frame-hud{
+    position:absolute;inset:0;padding:16px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    pointer-events:none;
+  }
+  .frame-hud .top{display:flex;align-items:center;gap:7px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;
+    color:var(--muted);text-transform:uppercase;
+  }
+  .frame-hud .top .rd{width:6px;height:6px;border-radius:50%;background:var(--rec);animation:pulse 2s ease-in-out infinite;}
+  .frame-hud .bottom{
+    align-self:flex-end;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);
+  }
+  .frame-vis{
+    position:absolute;left:16px;right:16px;bottom:44px;top:44px;
+    display:flex;align-items:flex-end;gap:3px;
+  }
+  .frame-vis .bar{
+    flex:1;background:linear-gradient(180deg, var(--amber), var(--teal));
+    border-radius:2px 2px 0 0;opacity:0.85;
+  }
+  figcaption{
+    margin-top:12px;font-size:13px;color:var(--muted);
+    font-family:'JetBrains Mono',monospace;
+    display:flex;gap:8px;align-items:baseline;
+  }
+  figcaption::before{content:"Fig.";color:var(--teal);}
+
+  /* ---------- footer ---------- */
+  footer{
+    max-width:var(--maxw);margin:0 auto;padding:40px 24px 80px;
+    border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    color:var(--muted);font-size:13px;
+  }
+  footer .fmono{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ---------- overlays / modals ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(8,8,9,0.72);
+    display:none;align-items:center;justify-content:center;
+    padding:20px;z-index:100;
+  }
+  .overlay.open{display:flex;}
+  .modal{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    width:100%;max-width:360px;padding:26px;
+    animation:pop .18s ease;
+  }
+  @keyframes pop{from{transform:scale(.96);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .modal h3{margin:0 0 16px;font-size:17px;}
+  .modal p{color:var(--muted);font-size:13.5px;margin:0 0 18px;}
+  .modal input[type=password]{
+    width:100%;padding:11px 13px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--text);font-size:14px;margin-bottom:8px;
+  }
+  .modal input:focus-visible{outline:2px solid var(--amber);}
+  .modal-error{color:var(--rec);font-size:12.5px;min-height:16px;margin:0 0 8px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px;}
+  .btn{
+    padding:9px 16px;border-radius:7px;border:1px solid var(--line);
+    background:transparent;color:var(--text);font-size:13.5px;font-weight:500;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .btn:hover{border-color:var(--muted);}
+  .btn.primary{background:var(--amber);border-color:var(--amber);color:var(--ink);font-weight:700;}
+  .btn.primary:hover{background:#ffc147;}
+  .btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  /* ---------- admin panel ---------- */
+  .admin-panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    width:100%;max-width:640px;max-height:86vh;display:flex;flex-direction:column;
+    animation:pop .18s ease;
+  }
+  .admin-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:20px 24px;border-bottom:1px solid var(--line);
+  }
+  .admin-head h3{margin:0;font-size:16px;}
+  .admin-body{padding:20px 24px;overflow-y:auto;}
+  .admin-section{margin-bottom:26px;}
+  .admin-section h4{
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--teal);margin:0 0 12px;
+  }
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  .field input[type=text], .field textarea{
+    width:100%;padding:9px 11px;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--text);font-size:13.5px;font-family:inherit;resize:vertical;
+  }
+  .field input:focus-visible, .field textarea:focus-visible{outline:2px solid var(--amber);}
+  .admin-actions{
+    display:flex;gap:10px;flex-wrap:wrap;
+    padding:16px 24px;border-top:1px solid var(--line);
+  }
+  .admin-actions .spacer{flex:1;}
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(12px);
+    background:var(--text);color:var(--ink);
+    padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:600;
+    opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
+    z-index:200;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001s !important;transition-duration:0.001s !important;}
+    .step{opacity:1;transform:none;}
+  }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand"><b>AISUHO</b> · YOUTUBE AUTOMATION</div>
+    <button class="admin-trigger" id="adminTrigger" aria-label="관리자"><span></span></button>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow"><span class="rec-dot"></span>Lecture Notes · <span data-key="hero.eyebrowTopic">유튜브 자동화</span></p>
+    <h1>유튜브,<br><span class="accent" data-key="hero.titleAccent">자동화 가이드</span></h1>
+    <p class="lede" data-key="hero.lede">유튜브 자동화 클래스에서 다룬 핵심 과정을 한 페이지로 정리했습니다.</p>
+    <a class="cta" id="ctaLink" href="#" data-key="hero.ctaText" data-href-key="hero.ctaLink">유튜브 자동화 마스터클래스 영상 보러가기 →</a>
+    <div class="hero-meta">
+      <span><b>7</b> STEPS</span>
+      <span>00:00 → 00:07</span>
+      <span>PIPELINE · SETUP → PUBLISH</span>
+    </div>
+  </section>
+
+  <section class="timeline" id="timeline"></section>
+
+  <footer>
+    <div data-key="footer.text" class="fmono">AISUHO · 유튜브 자동화 가이드</div>
+    <div class="fmono">© 2026</div>
+  </footer>
+
+  <!-- login modal -->
+  <div class="overlay" id="loginOverlay">
+    <div class="modal">
+      <h3>관리자 로그인</h3>
+      <input type="password" id="pwInput" placeholder="비밀번호" autocomplete="off">
+      <p class="modal-error" id="loginError"></p>
+      <div class="modal-actions">
+        <button class="btn" id="loginCancel">취소</button>
+        <button class="btn primary" id="loginConfirm">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- admin panel -->
+  <div class="overlay" id="adminOverlay">
+    <div class="admin-panel">
+      <div class="admin-head">
+        <h3>어드민 관리</h3>
+        <button class="btn" id="adminClose">닫기</button>
+      </div>
+      <div class="admin-body" id="adminBody"></div>
+      <div class="admin-actions">
+        <button class="btn primary" id="saveBtn">저장</button>
+        <button class="btn" id="exportBtn">내보내기</button>
+        <button class="btn" id="importBtn">가져오기</button>
+        <span class="spacer"></span>
+        <button class="btn" id="resetBtn" style="color:var(--rec);border-color:var(--rec);">초기화</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </div>
+
+  <!-- confirm modal -->
+  <div class="overlay" id="confirmOverlay">
+    <div class="modal">
+      <h3>진행할까요?</h3>
+      <p>저장된 모든 내용을 기본값으로 초기화합니다. 되돌릴 수 없습니다.</p>
+      <div class="modal-actions">
+        <button class="btn" id="confirmCancel">취소</button>
+        <button class="btn primary" id="confirmOk">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "aisuho_yt_guide_v1";
+  var ADMIN_PASSWORD = "aisuho2026";
+
+  var DEFAULT_CONTENT = {
+    hero:{
+      eyebrowTopic:"유튜브 자동화",
+      titleAccent:"자동화 가이드",
+      lede:"유튜브 자동화 클래스에서 다룬 핵심 과정을 한 페이지로 정리했습니다.",
+      ctaText:"유튜브 자동화 마스터클래스 영상 보러가기 →",
+      ctaLink:"#"
+    },
+    footer:{ text:"AISUHO · 유튜브 자동화 가이드" },
+    steps:[
+      { title:"구글 크롬 확장프로그램 설치",
+        desc:"채널 운영에 필요한 확장프로그램부터 순서대로 설치합니다. 자막 추출, 키워드 분석, 화면 녹화까지 이후 모든 과정의 기본 도구가 됩니다.",
+        caption:"채널 세팅 전에 먼저 설치해두는 확장프로그램 목록", image:"" },
+      { title:"유튜브 채널 세팅",
+        desc:"채널명, 프로필, 배너, 소개글까지 시청자가 처음 마주하는 요소를 정리합니다. 알고리즘이 채널을 이해하는 첫 단서이기도 합니다.",
+        caption:"채널 아이덴티티를 정리하는 세팅 화면", image:"" },
+      { title:"채널 벤치마킹",
+        desc:"같은 주제를 다루는 채널을 모아 조회수, 업로드 주기, 제목 패턴을 비교합니다. 무작정 따라하지 않고 내 채널에 맞게 걸러내는 과정입니다.",
+        caption:"경쟁 채널 데이터를 정리한 벤치마킹 표", image:"" },
+      { title:"올인원 유튜브 대본 앱 생성",
+        desc:"주제 입력부터 대본, 제목, 썸네일 문구까지 한 번에 뽑아내는 나만의 대본 생성 도구를 만듭니다. 매번 새로 프롬프트를 짤 필요가 없어집니다.",
+        caption:"대본, 제목, 썸네일 문구를 한 번에 생성하는 앱 화면", image:"" },
+      { title:"이미지, 영상 생성",
+        desc:"완성된 대본을 바탕으로 장면별 이미지와 영상을 생성합니다. 톤과 스타일을 일정하게 유지하는 것이 이 단계의 핵심입니다.",
+        caption:"대본 흐름에 맞춰 생성한 장면별 이미지", image:"" },
+      { title:"영상 편집",
+        desc:"생성한 소스를 타임라인에 올려 컷 편집, 자막, 배경음악까지 붙입니다. 속도감 있게 편집하는 몇 가지 원칙만 지키면 충분합니다.",
+        caption:"컷 편집과 자막이 배치된 타임라인 화면", image:"" },
+      { title:"영상 자막 오타 수정",
+        desc:"업로드 전 마지막 단계로 자동 생성된 자막의 오탈자와 어색한 문장을 한 번 더 점검합니다. 작은 오타 하나가 채널 신뢰도를 갉아먹습니다.",
+        caption:"업로드 전 마지막으로 점검하는 자막 오타 리스트", image:"" }
+    ]
+  };
+
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+  function loadContent(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return clone(DEFAULT_CONTENT);
+      var parsed = JSON.parse(raw);
+      var merged = clone(DEFAULT_CONTENT);
+      merged.hero = Object.assign({}, merged.hero, parsed.hero||{});
+      merged.footer = Object.assign({}, merged.footer, parsed.footer||{});
+      if(Array.isArray(parsed.steps) && parsed.steps.length){
+        merged.steps = merged.steps.map(function(s,i){
+          return Object.assign({}, s, parsed.steps[i]||{});
+        });
+      }
+      return merged;
+    }catch(e){ return clone(DEFAULT_CONTENT); }
+  }
+
+  var state = { content: loadContent() };
+
+  function seededRand(seed){
+    var x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  }
+
+  function buildFrameVis(stepIndex){
+    var bars = "";
+    var n = 28;
+    for(var b=0;b<n;b++){
+      var h = 18 + Math.round(seededRand(stepIndex*97 + b*13) * 78);
+      bars += '<div class="bar" style="height:'+h+'%"></div>';
+    }
+    return bars;
+  }
+
+  function frameHtml(step, idx){
+    var num = idx+1;
+    var tag = num < 10 ? "0"+num : ""+num;
+    if(step.image && step.image.trim()){
+      return '<img src="'+escapeAttr(step.image)+'" alt="'+escapeAttr(step.caption||step.title)+'">';
+    }
+    return ''
+      + '<div class="frame-grid"></div>'
+      + '<div class="frame-vis">'+buildFrameVis(num)+'</div>'
+      + '<div class="frame-hud">'
+      +   '<div class="top"><span class="rd"></span>SCN '+tag+'</div>'
+      +   '<div class="bottom">00:'+tag+':00</div>'
+      + '</div>';
+  }
+
+  function escapeHtml(s){
+    return String(s==null?"":s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
+
+  function renderTimeline(){
+    var el = document.getElementById("timeline");
+    var html = "";
+    state.content.steps.forEach(function(step, i){
+      var tag = (i+1) < 10 ? "0"+(i+1) : ""+(i+1);
+      html += ''
+        + '<div class="step" data-idx="'+i+'">'
+        +   '<div class="step-num"><span class="dot"></span><span class="tc mono">'+tag+'</span></div>'
+        +   '<div class="step-body">'
+        +     '<h2>'+escapeHtml(step.title)+'</h2>'
+        +     '<p>'+escapeHtml(step.desc)+'</p>'
+        +     '<figure class="frame">'
+        +       '<div class="frame-16x9">'+frameHtml(step,i)+'</div>'
+        +       '<figcaption>'+escapeHtml(step.caption)+'</figcaption>'
+        +     '</figure>'
+        +   '</div>'
+        + '</div>';
+    });
+    el.innerHTML = html;
+    observeSteps();
+  }
+
+  function render(){
+    var c = state.content;
+    document.querySelector('[data-key="hero.eyebrowTopic"]').textContent = c.hero.eyebrowTopic;
+    document.querySelector('[data-key="hero.titleAccent"]').textContent = c.hero.titleAccent;
+    document.querySelector('[data-key="hero.lede"]').textContent = c.hero.lede;
+    var cta = document.getElementById("ctaLink");
+    cta.textContent = c.hero.ctaText;
+    cta.setAttribute("href", c.hero.ctaLink || "#");
+    document.querySelector('[data-key="footer.text"]').textContent = c.footer.text;
+    renderTimeline();
+  }
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function observeSteps(){
+    var steps = document.querySelectorAll(".step");
+    if(reduceMotion || !("IntersectionObserver" in window)){
+      steps.forEach(function(s){ s.classList.add("in-view"); });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          entry.target.classList.add("in-view");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold:0.15 });
+    steps.forEach(function(s){ io.observe(s); });
+  }
+
+  /* ---------- admin form ---------- */
+  function buildAdminForm(){
+    var body = document.getElementById("adminBody");
+    var c = state.content;
+    var html = '';
+
+    html += '<div class="admin-section"><h4>HERO</h4>'
+      + field("hero.eyebrowTopic","상단 라벨", c.hero.eyebrowTopic)
+      + field("hero.titleAccent","제목 강조 문구", c.hero.titleAccent)
+      + field("hero.lede","소개 문장", c.hero.lede, true)
+      + field("hero.ctaText","버튼 문구", c.hero.ctaText)
+      + field("hero.ctaLink","버튼 링크(URL)", c.hero.ctaLink)
+      + '</div>';
+
+    c.steps.forEach(function(step, i){
+      var tag = (i+1)<10 ? "0"+(i+1) : ""+(i+1);
+      html += '<div class="admin-section"><h4>STEP '+tag+'</h4>'
+        + field("steps."+i+".title","제목", step.title)
+        + field("steps."+i+".desc","설명", step.desc, true)
+        + field("steps."+i+".caption","캡션", step.caption)
+        + field("steps."+i+".image","이미지 URL (비워두면 기본 그래픽)", step.image)
+        + '</div>';
+    });
+
+    html += '<div class="admin-section"><h4>FOOTER</h4>'
+      + field("footer.text","하단 문구", c.footer.text)
+      + '</div>';
+
+    body.innerHTML = html;
+
+    body.querySelectorAll("[data-path]").forEach(function(input){
+      input.addEventListener("input", function(){
+        setByPath(state.content, input.getAttribute("data-path"), input.value);
+      });
+    });
+  }
+
+  function field(path, label, value, isTextarea){
+    var id = "f_"+path.replace(/\./g,"_");
+    var v = escapeAttr(value);
+    if(isTextarea){
+      return '<div class="field"><label for="'+id+'">'+label+'</label>'
+        + '<textarea id="'+id+'" rows="3" data-path="'+path+'">'+escapeHtml(value)+'</textarea></div>';
+    }
+    return '<div class="field"><label for="'+id+'">'+label+'</label>'
+      + '<input type="text" id="'+id+'" data-path="'+path+'" value="'+v+'"></div>';
+  }
+
+  function setByPath(obj, path, value){
+    var parts = path.split(".");
+    var ref = obj;
+    for(var i=0;i<parts.length-1;i++){ ref = ref[parts[i]]; }
+    ref[parts[parts.length-1]] = value;
+  }
+
+  /* ---------- toast ---------- */
+  var toastTimer;
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  /* ---------- overlay helpers ---------- */
+  function open(id){ document.getElementById(id).classList.add("open"); }
+  function close(id){ document.getElementById(id).classList.remove("open"); }
+
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape"){
+      document.querySelectorAll(".overlay.open").forEach(function(ov){ close(ov.id); });
+    }
+  });
+
+  /* ---------- admin trigger flow ---------- */
+  document.getElementById("adminTrigger").addEventListener("click", function(){
+    document.getElementById("pwInput").value = "";
+    document.getElementById("loginError").textContent = "";
+    open("loginOverlay");
+    setTimeout(function(){ document.getElementById("pwInput").focus(); }, 50);
+  });
+  document.getElementById("loginCancel").addEventListener("click", function(){ close("loginOverlay"); });
+
+  function tryLogin(){
+    var val = document.getElementById("pwInput").value;
+    if(val === ADMIN_PASSWORD){
+      close("loginOverlay");
+      buildAdminForm();
+      open("adminOverlay");
+    }else{
+      document.getElementById("loginError").textContent = "비밀번호가 올바르지 않습니다.";
+    }
+  }
+  document.getElementById("loginConfirm").addEventListener("click", tryLogin);
+  document.getElementById("pwInput").addEventListener("keydown", function(e){
+    if(e.key === "Enter") tryLogin();
+  });
+
+  document.getElementById("adminClose").addEventListener("click", function(){ close("adminOverlay"); });
+
+  document.getElementById("saveBtn").addEventListener("click", function(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content));
+    render();
+    showToast("저장했습니다");
+  });
+
+  document.getElementById("exportBtn").addEventListener("click", function(){
+    var blob = new Blob([JSON.stringify(state.content, null, 2)], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "yt-guide-content.json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("내보냈습니다");
+  });
+
+  document.getElementById("importBtn").addEventListener("click", function(){
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var parsed = JSON.parse(reader.result);
+        var merged = clone(DEFAULT_CONTENT);
+        merged.hero = Object.assign({}, merged.hero, parsed.hero||{});
+        merged.footer = Object.assign({}, merged.footer, parsed.footer||{});
+        if(Array.isArray(parsed.steps) && parsed.steps.length){
+          merged.steps = merged.steps.map(function(s,i){ return Object.assign({}, s, parsed.steps[i]||{}); });
+        }
+        state.content = merged;
+        buildAdminForm();
+        render();
+        showToast("가져왔습니다");
+      }catch(err){
+        showToast("파일을 읽을 수 없습니다");
+      }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", function(){ open("confirmOverlay"); });
+  document.getElementById("confirmCancel").addEventListener("click", function(){ close("confirmOverlay"); });
+  document.getElementById("confirmOk").addEventListener("click", function(){
+    localStorage.removeItem(STORAGE_KEY);
+    state.content = clone(DEFAULT_CONTENT);
+    buildAdminForm();
+    render();
+    close("confirmOverlay");
+    showToast("초기화했습니다");
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
