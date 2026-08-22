@@ -302,6 +302,7 @@
   .img-controls{display:flex;flex-direction:column;gap:8px;}
   .img-controls .btn{text-align:center;font-size:12.5px;padding:8px 14px;}
   .img-controls .img-clear{color:var(--muted);}
+  .img-note{margin:8px 0 0;font-size:11px;color:var(--teal);font-family:'JetBrains Mono',monospace;}
   .admin-actions{
     display:flex;gap:10px;flex-wrap:wrap;
     padding:16px 24px;border-top:1px solid var(--line);
@@ -337,8 +338,8 @@
     <p class="lede" data-key="hero.lede">유튜브 자동화 클래스에서 다룬 핵심 과정을 한 페이지로 정리했습니다.</p>
     <a class="cta" id="ctaLink" href="#" data-key="hero.ctaText" data-href-key="hero.ctaLink">유튜브 자동화 마스터클래스 영상 보러가기 →</a>
     <div class="hero-meta">
-      <span><b>7</b> STEPS</span>
-      <span>00:00 → 00:07</span>
+      <span><b>8</b> STEPS</span>
+      <span>00:00 → 00:08</span>
       <span>PIPELINE · SETUP → PUBLISH</span>
     </div>
   </section>
@@ -400,7 +401,7 @@
 (function(){
   "use strict";
 
-  var STORAGE_KEY = "aisuho_yt_guide_v1";
+  var STORAGE_KEY = "aisuho_yt_guide_v2";
   var ADMIN_PASSWORD_HASH = "675f3c31fdf3311d19a96037409e76d8d7abc715d8602add6cc188ea0f7e2fe0";
 
   var DEFAULT_CONTENT = {
@@ -425,6 +426,9 @@
       { title:"올인원 유튜브 대본 앱 생성",
         desc:"주제 입력부터 대본, 제목, 썸네일 문구까지 한 번에 뽑아내는 나만의 대본 생성 도구를 만듭니다. 매번 새로 프롬프트를 짤 필요가 없어집니다.",
         caption:"대본, 제목, 썸네일 문구를 한 번에 생성하는 앱 화면", image:"" },
+      { title:"TTS 생성",
+        desc:"완성된 대본을 TTS로 변환해 나레이션을 만듭니다. 목소리 톤과 속도, 발음을 다듬어 영상에 자연스럽게 입힐 준비를 마칩니다.",
+        caption:"대본을 음성으로 변환하는 TTS 생성 화면", image:"" },
       { title:"이미지, 영상 생성",
         desc:"완성된 대본을 바탕으로 장면별 이미지와 영상을 생성합니다. 톤과 스타일을 일정하게 유지하는 것이 이 단계의 핵심입니다.",
         caption:"대본 흐름에 맞춰 생성한 장면별 이미지", image:"" },
@@ -438,6 +442,59 @@
   };
 
   function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+  /* ---------- image storage (IndexedDB) ----------
+     Uploaded photos are resized/compressed then stored here, not in
+     localStorage — localStorage has only a few MB of quota shared by the
+     whole page, which is what ran out after two photos. IndexedDB has a
+     much larger quota, so content.steps[i].image just holds the short
+     marker "local" and the actual bytes live here, keyed by step index. */
+  var IDB_NAME = "aisuho_yt_guide_images_v2";
+  var IDB_STORE = "images";
+  var idbPromise = null;
+  function openImageDB(){
+    if(idbPromise) return idbPromise;
+    idbPromise = new Promise(function(resolve, reject){
+      if(!("indexedDB" in window)){ reject(new Error("no indexeddb")); return; }
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+    return idbPromise;
+  }
+  function idbGet(key){
+    return openImageDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, "readonly");
+        var req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+  function idbSet(key, value){
+    return openImageDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(value, key);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function idbDelete(key){
+    return openImageDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    }).catch(function(){ return false; });
+  }
+  function stepImgKey(idx){ return "step-"+idx; }
+
 
   function loadContent(){
     try{
@@ -476,6 +533,16 @@
   function frameHtml(step, idx){
     var num = idx+1;
     var tag = num < 10 ? "0"+num : ""+num;
+    if(step.image === "local"){
+      // placeholder until hydrateLocalImages() fetches the real bytes from IndexedDB
+      return ''
+        + '<div class="frame-grid"></div>'
+        + '<div class="frame-vis">'+buildFrameVis(num)+'</div>'
+        + '<div class="frame-hud">'
+        +   '<div class="top"><span class="rd"></span>SCN '+tag+'</div>'
+        +   '<div class="bottom">00:'+tag+':00</div>'
+        + '</div>';
+    }
     if(step.image && step.image.trim()){
       return '<img src="'+escapeAttr(step.image)+'" alt="'+escapeAttr(step.caption||step.title)+'">';
     }
@@ -493,6 +560,17 @@
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
   function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
+
+  function hydrateLocalImages(){
+    state.content.steps.forEach(function(step, i){
+      if(step.image !== "local") return;
+      idbGet(stepImgKey(i)).then(function(dataUrl){
+        if(!dataUrl) return;
+        var frame = document.querySelector('.step[data-idx="'+i+'"] .frame-16x9');
+        if(frame) frame.innerHTML = '<img src="'+dataUrl+'" alt="'+escapeAttr(step.caption||step.title)+'">';
+      }).catch(function(){});
+    });
+  }
 
   function renderTimeline(){
     var el = document.getElementById("timeline");
@@ -514,6 +592,7 @@
     });
     el.innerHTML = html;
     observeSteps();
+    hydrateLocalImages();
   }
 
   function render(){
@@ -576,11 +655,20 @@
 
     body.innerHTML = html;
 
+    // hydrate thumbnails for steps whose image lives in IndexedDB
+    c.steps.forEach(function(step, i){
+      if(step.image === "local"){
+        idbGet(stepImgKey(i)).then(function(dataUrl){ updateThumb(i, dataUrl || ""); });
+      }
+    });
+
     body.querySelectorAll("[data-path]").forEach(function(input){
       input.addEventListener("input", function(){
         setByPath(state.content, input.getAttribute("data-path"), input.value);
         if(input.classList.contains("url-fallback")){
-          updateThumb(input.getAttribute("data-idx"), input.value);
+          var idx = input.getAttribute("data-idx");
+          idbDelete(stepImgKey(idx)); // typing a URL overrides any locally stored photo
+          updateThumb(idx, input.value);
         }
       });
     });
@@ -600,11 +688,15 @@
             showToast("이미지를 불러오지 못했습니다");
             return;
           }
-          setByPath(state.content, "steps."+idx+".image", dataUrl);
-          var urlInput = document.getElementById("f_steps_"+idx+"_image");
-          if(urlInput) urlInput.value = dataUrl;
-          updateThumb(idx, dataUrl);
-          fileInput.value = "";
+          idbSet(stepImgKey(idx), dataUrl).then(function(){
+            setByPath(state.content, "steps."+idx+".image", "local");
+            var urlInput = document.getElementById("f_steps_"+idx+"_image");
+            if(urlInput) urlInput.value = "";
+            updateThumb(idx, dataUrl);
+            fileInput.value = "";
+          }).catch(function(){
+            showToast("이미지를 기기에 저장하지 못했습니다");
+          });
         });
       });
     });
@@ -612,6 +704,7 @@
     body.querySelectorAll(".img-clear[data-idx]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var idx = btn.getAttribute("data-idx");
+        idbDelete(stepImgKey(idx));
         setByPath(state.content, "steps."+idx+".image", "");
         var urlInput = document.getElementById("f_steps_"+idx+"_image");
         if(urlInput) urlInput.value = "";
@@ -667,13 +760,15 @@
 
   function imageField(path, label, value, idx){
     var id = "f_"+path.replace(/\./g,"_");
-    var hasImg = value && value.trim();
+    var isLocal = value === "local";
+    var urlValue = isLocal ? "" : (value || "");
+    var thumbInner = isLocal
+      ? '<span>불러오는 중…</span>'
+      : (urlValue ? '<img src="'+escapeAttr(urlValue)+'" alt="">' : '<span>기본 그래픽</span>');
     return '<div class="field">'
       + '<label>'+label+'</label>'
       + '<div class="img-row">'
-      +   '<div class="img-thumb" id="thumb_'+idx+'">'
-      +     (hasImg ? '<img src="'+escapeAttr(value)+'" alt="">' : '<span>기본 그래픽</span>')
-      +   '</div>'
+      +   '<div class="img-thumb" id="thumb_'+idx+'">'+thumbInner+'</div>'
       +   '<div class="img-controls">'
       +     '<label class="btn file-btn" for="file_'+idx+'">이미지 선택</label>'
       +     '<input type="file" id="file_'+idx+'" data-idx="'+idx+'" accept="image/*" hidden>'
@@ -681,7 +776,8 @@
       +   '</div>'
       + '</div>'
       + '<input type="text" class="url-fallback" id="'+id+'" data-path="'+path+'" data-idx="'+idx+'" '
-      +   'value="'+escapeAttr(value)+'" placeholder="또는 이미지 URL 직접 입력">'
+      +   'value="'+escapeAttr(urlValue)+'" placeholder="또는 이미지 URL 직접 입력">'
+      + (isLocal ? '<p class="img-note">기기에 저장된 이미지 사용 중</p>' : '')
       + '</div>';
   }
 
@@ -773,13 +869,22 @@
   });
 
   document.getElementById("exportBtn").addEventListener("click", function(){
-    var blob = new Blob([JSON.stringify(state.content, null, 2)], {type:"application/json"});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url; a.download = "yt-guide-content.json";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("내보냈습니다");
+    var exportObj = clone(state.content);
+    var localIdx = [];
+    exportObj.steps.forEach(function(s, i){ if(s.image === "local") localIdx.push(i); });
+    Promise.all(localIdx.map(function(i){
+      return idbGet(stepImgKey(i)).then(function(dataUrl){ exportObj.steps[i].image = dataUrl || ""; });
+    })).then(function(){
+      var blob = new Blob([JSON.stringify(exportObj, null, 2)], {type:"application/json"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "yt-guide-content.json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("내보냈습니다");
+    }).catch(function(){
+      showToast("내보내기에 실패했습니다");
+    });
   });
 
   document.getElementById("importBtn").addEventListener("click", function(){
@@ -798,10 +903,18 @@
         if(Array.isArray(parsed.steps) && parsed.steps.length){
           merged.steps = merged.steps.map(function(s,i){ return Object.assign({}, s, parsed.steps[i]||{}); });
         }
-        state.content = merged;
-        buildAdminForm();
-        render();
-        showToast("가져왔습니다");
+        var tasks = [];
+        merged.steps.forEach(function(s, i){
+          if(s.image && s.image.indexOf("data:") === 0){
+            tasks.push(idbSet(stepImgKey(i), s.image).then(function(){ merged.steps[i].image = "local"; }));
+          }
+        });
+        Promise.all(tasks).then(function(){
+          state.content = merged;
+          buildAdminForm();
+          render();
+          showToast("가져왔습니다");
+        });
       }catch(err){
         showToast("파일을 읽을 수 없습니다");
       }
@@ -814,11 +927,14 @@
   document.getElementById("confirmCancel").addEventListener("click", function(){ close("confirmOverlay"); });
   document.getElementById("confirmOk").addEventListener("click", function(){
     localStorage.removeItem(STORAGE_KEY);
-    state.content = clone(DEFAULT_CONTENT);
-    buildAdminForm();
-    render();
-    close("confirmOverlay");
-    showToast("초기화했습니다");
+    var deletions = DEFAULT_CONTENT.steps.map(function(_, i){ return idbDelete(stepImgKey(i)); });
+    Promise.all(deletions).catch(function(){}).then(function(){
+      state.content = clone(DEFAULT_CONTENT);
+      buildAdminForm();
+      render();
+      close("confirmOverlay");
+      showToast("초기화했습니다");
+    });
   });
 
   render();
