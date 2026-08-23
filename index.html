@@ -1,111 +1,1054 @@
-<a target="_blank" href="이동할 주소"><img src="
-투명위젯주소" /></a>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>유튜브, 자동화 가이드 — Lecture Notes</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+
+<style>
+  :root{
+    --ink:#121214;
+    --panel:#1B1B1F;
+    --panel-2:#202024;
+    --text:#ECEAE3;
+    --muted:#9A968D;
+    --line:rgba(236,234,227,0.14);
+    --amber:#FFB020;
+    --teal:#49B7AE;
+    --rec:#FF5D5D;
+    --radius:14px;
+    --maxw:900px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Pretendard', -apple-system, sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--amber);color:#181818;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  .mono{font-family:'JetBrains Mono', ui-monospace, monospace;}
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 24px;
+    background:rgba(18,18,20,0.72);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;letter-spacing:0.12em;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .brand b{color:var(--text);}
+  .admin-trigger{
+    width:38px;height:38px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color .2s ease, transform .2s ease;
+    flex-shrink:0;
+  }
+  .admin-trigger:hover{border-color:var(--amber);transform:translateY(-1px);}
+  .admin-trigger:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  .admin-trigger span{
+    width:6px;height:6px;border-radius:50%;background:var(--amber);
+  }
+
+  /* ---------- hero ---------- */
+  .hero{
+    max-width:var(--maxw);margin:0 auto;
+    padding:88px 24px 64px;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--muted);
+    display:flex;align-items:center;gap:8px;margin:0 0 22px;
+  }
+  .rec-dot{
+    width:7px;height:7px;border-radius:50%;background:var(--rec);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  h1{
+    font-size:clamp(34px,6vw,58px);
+    line-height:1.12;
+    margin:0 0 22px;
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  h1 .accent{
+    display:block;
+    font-family:'Noto Serif KR',serif;
+    font-weight:700;
+    line-height:1.2;
+    color:var(--amber);
+    margin-top:6px;
+  }
+  .lede{
+    font-size:17px;color:var(--muted);max-width:52ch;margin:0 0 34px;
+  }
+  .cta{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:14px 22px;
+    border:1px solid var(--amber);
+    border-radius:999px;
+    text-decoration:none;
+    font-weight:600;font-size:14px;
+    color:var(--ink);background:var(--amber);
+    transition:transform .2s ease, box-shadow .2s ease;
+  }
+  .cta:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,176,32,0.25);}
+  .cta:focus-visible{outline:2px solid var(--teal);outline-offset:3px;}
+  .hero-meta{
+    margin-top:40px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;color:var(--muted);
+    display:flex;gap:18px;flex-wrap:wrap;
+    border-top:1px solid var(--line);padding-top:18px;
+  }
+  .hero-meta b{color:var(--teal);}
+
+  /* ---------- timeline ---------- */
+  .timeline{
+    max-width:var(--maxw);margin:0 auto;padding:20px 24px 40px;
+    position:relative;
+  }
+  .timeline::before{
+    content:"";position:absolute;left:47px;top:0;bottom:0;
+    width:1px;background:var(--line);
+  }
+  @media (max-width:640px){.timeline::before{left:27px;}}
+
+  .step{
+    position:relative;
+    display:grid;
+    grid-template-columns:96px 1fr;
+    gap:0 28px;
+    padding:44px 0;
+    opacity:0;transform:translateY(18px);
+    transition:opacity .6s ease, transform .6s ease;
+  }
+  .step.in-view{opacity:1;transform:translateY(0);}
+  .step:first-child{padding-top:8px;}
+  @media (max-width:640px){.step{grid-template-columns:56px 1fr;}}
+
+  .step-num{
+    font-family:'JetBrains Mono',monospace;
+    font-size:13px;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+  }
+  .step-num .dot{
+    width:15px;height:15px;border-radius:50%;
+    background:var(--amber);
+    border:3px solid var(--ink);
+    box-shadow:0 0 0 1px var(--line);
+    flex-shrink:0;
+  }
+  .step-num .tc{color:var(--muted);writing-mode:horizontal-tb;}
+
+  .step-body h2{
+    font-size:22px;margin:0 0 12px;font-weight:700;letter-spacing:-0.01em;
+  }
+  .step-body p{
+    color:var(--muted);font-size:15px;margin:0 0 24px;max-width:60ch;
+  }
+
+  /* ---------- 16:9 frame ---------- */
+  figure.frame{margin:0;}
+  .frame-16x9{
+    position:relative;
+    width:100%;
+    aspect-ratio:16/9;
+    border-radius:var(--radius);
+    overflow:hidden;
+    border:1px solid var(--line);
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(73,183,174,0.14), transparent 55%),
+      radial-gradient(120% 120% at 0% 100%, rgba(255,176,32,0.14), transparent 55%),
+      var(--panel);
+  }
+  .frame-16x9 img{
+    width:100%;height:100%;object-fit:cover;display:block;
+  }
+  .frame-grid{
+    position:absolute;inset:0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:40px 40px;
+    opacity:0.35;
+  }
+  .frame-hud{
+    position:absolute;inset:0;padding:16px;
+    display:flex;flex-direction:column;justify-content:space-between;
+    pointer-events:none;
+  }
+  .frame-hud .top{display:flex;align-items:center;gap:7px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;
+    color:var(--muted);text-transform:uppercase;
+  }
+  .frame-hud .top .rd{width:6px;height:6px;border-radius:50%;background:var(--rec);animation:pulse 2s ease-in-out infinite;}
+  .frame-hud .bottom{
+    align-self:flex-end;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);
+  }
+  .frame-vis{
+    position:absolute;left:16px;right:16px;bottom:44px;top:44px;
+    display:flex;align-items:flex-end;gap:3px;
+  }
+  .frame-vis .bar{
+    flex:1;background:linear-gradient(180deg, var(--amber), var(--teal));
+    border-radius:2px 2px 0 0;opacity:0.85;
+  }
+  figcaption{
+    margin-top:12px;font-size:13px;color:var(--muted);
+    font-family:'JetBrains Mono',monospace;
+    display:flex;gap:8px;align-items:baseline;
+  }
+  figcaption::before{content:"Fig.";color:var(--teal);}
+
+  /* ---------- footer ---------- */
+  footer{
+    max-width:var(--maxw);margin:0 auto;padding:40px 24px 80px;
+    border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    color:var(--muted);font-size:13px;
+  }
+  footer .fmono{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ---------- overlays / modals ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(8,8,9,0.72);
+    display:none;align-items:center;justify-content:center;
+    padding:20px;z-index:100;
+  }
+  .overlay.open{display:flex;}
+  .modal{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    width:100%;max-width:360px;padding:26px;
+    animation:pop .18s ease;
+  }
+  @keyframes pop{from{transform:scale(.96);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .modal h3{margin:0 0 16px;font-size:17px;}
+  .modal p{color:var(--muted);font-size:13.5px;margin:0 0 18px;}
+  .modal input[type=password]{
+    width:100%;padding:11px 13px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--text);font-size:14px;margin-bottom:8px;
+  }
+  .modal input:focus-visible{outline:2px solid var(--amber);}
+  .modal-error{color:var(--rec);font-size:12.5px;min-height:16px;margin:0 0 8px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:6px;}
+  .btn{
+    padding:9px 16px;border-radius:7px;border:1px solid var(--line);
+    background:transparent;color:var(--text);font-size:13.5px;font-weight:500;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .btn:hover{border-color:var(--muted);}
+  .btn.primary{background:var(--amber);border-color:var(--amber);color:var(--ink);font-weight:700;}
+  .btn.primary:hover{background:#ffc147;}
+  .btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+
+  /* ---------- admin panel ---------- */
+  .admin-panel{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    width:100%;max-width:640px;max-height:86vh;display:flex;flex-direction:column;
+    animation:pop .18s ease;
+  }
+  .admin-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:20px 24px;border-bottom:1px solid var(--line);
+  }
+  .admin-head h3{margin:0;font-size:16px;}
+  .admin-body{padding:20px 24px;overflow-y:auto;}
+  .admin-section{margin-bottom:26px;}
+  .admin-section h4{
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--teal);margin:0 0 12px;
+  }
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;}
+  .field input[type=text], .field textarea{
+    width:100%;padding:9px 11px;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel-2);color:var(--text);font-size:13.5px;font-family:inherit;resize:vertical;
+  }
+  .field input:focus-visible, .field textarea:focus-visible{outline:2px solid var(--amber);}
+  .field input.url-fallback{margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px;}
+  .img-row{display:flex;gap:12px;align-items:center;}
+  .img-thumb{
+    width:104px;aspect-ratio:16/9;flex-shrink:0;border-radius:7px;overflow:hidden;
+    border:1px solid var(--line);background:var(--panel-2);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .img-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .img-thumb span{font-size:10px;color:var(--muted);text-align:center;padding:4px;
+    font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.04em;}
+  .img-controls{display:flex;flex-direction:column;gap:8px;}
+  .img-controls .btn{text-align:center;font-size:12.5px;padding:8px 14px;}
+  .img-controls .img-clear{color:var(--muted);}
+  .img-note{margin:8px 0 0;font-size:11px;color:var(--teal);font-family:'JetBrains Mono',monospace;}
+  .admin-actions{
+    display:flex;gap:10px;flex-wrap:wrap;
+    padding:16px 24px;border-top:1px solid var(--line);
+  }
+  .admin-actions .spacer{flex:1;}
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(12px);
+    background:var(--text);color:var(--ink);
+    padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:600;
+    opacity:0;pointer-events:none;transition:opacity .25s ease, transform .25s ease;
+    z-index:200;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001s !important;transition-duration:0.001s !important;}
+    .step{opacity:1;transform:none;}
+  }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand"><b>AISUHO</b> · YOUTUBE AUTOMATION</div>
+    <button class="admin-trigger" id="adminTrigger" aria-label="관리자"><span></span></button>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow"><span class="rec-dot"></span>Lecture Notes · <span data-key="hero.eyebrowTopic">유튜브 자동화</span></p>
+    <h1>유튜브,<br><span class="accent" data-key="hero.titleAccent">자동화 가이드</span></h1>
+    <p class="lede" data-key="hero.lede">유튜브 자동화 클래스에서 다룬 핵심 과정을 한 페이지로 정리했습니다.</p>
+    <a class="cta" id="ctaLink" href="#" data-key="hero.ctaText" data-href-key="hero.ctaLink">유튜브 자동화 마스터클래스 영상 보러가기 →</a>
+    <div class="hero-meta">
+      <span><b>8</b> STEPS</span>
+      <span>00:00 → 00:08</span>
+      <span>PIPELINE · SETUP → PUBLISH</span>
+    </div>
+  </section>
+
+  <section class="timeline" id="timeline"></section>
+
+  <footer>
+    <div data-key="footer.text" class="fmono">AISUHO · 유튜브 자동화 가이드</div>
+    <div class="fmono">© 2026</div>
+  </footer>
+
+  <!-- login modal -->
+  <div class="overlay" id="loginOverlay">
+    <div class="modal">
+      <h3>관리자 로그인</h3>
+      <input type="password" id="pwInput" placeholder="비밀번호" autocomplete="off">
+      <p class="modal-error" id="loginError"></p>
+      <div class="modal-actions">
+        <button class="btn" id="loginCancel">취소</button>
+        <button class="btn primary" id="loginConfirm">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- admin panel -->
+  <div class="overlay" id="adminOverlay">
+    <div class="admin-panel">
+      <div class="admin-head">
+        <h3>어드민 관리</h3>
+        <button class="btn" id="adminClose">닫기</button>
+      </div>
+      <div class="admin-body" id="adminBody"></div>
+      <div class="admin-actions">
+        <button class="btn primary" id="saveBtn">저장</button>
+        <button class="btn" id="exportBtn">내보내기</button>
+        <button class="btn" id="importBtn">가져오기</button>
+        <span class="spacer"></span>
+        <button class="btn" id="resetBtn" style="color:var(--rec);border-color:var(--rec);">초기화</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" hidden>
+    </div>
+  </div>
+
+  <!-- confirm modal -->
+  <div class="overlay" id="confirmOverlay">
+    <div class="modal">
+      <h3>진행할까요?</h3>
+      <p>저장된 모든 내용을 기본값으로 초기화합니다. 되돌릴 수 없습니다.</p>
+      <div class="modal-actions">
+        <button class="btn" id="confirmCancel">취소</button>
+        <button class="btn primary" id="confirmOk">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-storage-compat.min.js"></script>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "aisuho_yt_guide_v2";
+  var ADMIN_PASSWORD_HASH = "675f3c31fdf3311d19a96037409e76d8d7abc715d8602add6cc188ea0f7e2fe0";
+
+  /* ---------- Firebase (cloud persistence) ----------
+     Content edits and uploaded images are saved to Firestore / Storage so
+     they survive across devices and browsers (localStorage/IndexedDB
+     alone only ever lived on one device, and some in-app browsers wipe
+     that storage between visits — that's what "저장이 안 됐어" was). */
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDS0BT4bEDj5PjKAtzKIl1TDRh1gCk5sUo",
+    authDomain: "utube-8a0f5.firebaseapp.com",
+    projectId: "utube-8a0f5",
+    storageBucket: "utube-8a0f5.firebasestorage.app",
+    messagingSenderId: "284125580414",
+    appId: "1:284125580414:web:2e3ad371061ddf27559c2f"
+  };
+  var fbDb = null, fbStorageRef = null, fbReady = false;
+  try{
+    if(typeof firebase !== "undefined" && firebase.initializeApp){
+      firebase.initializeApp(FIREBASE_CONFIG);
+      fbDb = firebase.firestore();
+      fbStorageRef = firebase.storage().ref();
+      fbReady = true;
+    }
+  }catch(e){ fbReady = false; }
+
+  function contentDocRef(){ return fbDb.collection("site").doc("content"); }
+
+  var DEFAULT_CONTENT = {
+    hero:{
+      eyebrowTopic:"유튜브 자동화",
+      titleAccent:"자동화 가이드",
+      lede:"유튜브 자동화 클래스에서 다룬 핵심 과정을 한 페이지로 정리했습니다.",
+      ctaText:"유튜브 자동화 마스터클래스 영상 보러가기 →",
+      ctaLink:"#"
+    },
+    footer:{ text:"AISUHO · 유튜브 자동화 가이드" },
+    steps:[
+      { title:"구글 크롬 확장프로그램 설치",
+        desc:"채널 운영에 필요한 확장프로그램부터 순서대로 설치합니다. 자막 추출, 키워드 분석, 화면 녹화까지 이후 모든 과정의 기본 도구가 됩니다.",
+        caption:"채널 세팅 전에 먼저 설치해두는 확장프로그램 목록", image:"" },
+      { title:"유튜브 채널 세팅",
+        desc:"채널명, 프로필, 배너, 소개글까지 시청자가 처음 마주하는 요소를 정리합니다. 알고리즘이 채널을 이해하는 첫 단서이기도 합니다.",
+        caption:"채널 아이덴티티를 정리하는 세팅 화면", image:"" },
+      { title:"채널 벤치마킹",
+        desc:"같은 주제를 다루는 채널을 모아 조회수, 업로드 주기, 제목 패턴을 비교합니다. 무작정 따라하지 않고 내 채널에 맞게 걸러내는 과정입니다.",
+        caption:"경쟁 채널 데이터를 정리한 벤치마킹 표", image:"" },
+      { title:"올인원 유튜브 대본 앱 생성",
+        desc:"주제 입력부터 대본, 제목, 썸네일 문구까지 한 번에 뽑아내는 나만의 대본 생성 도구를 만듭니다. 매번 새로 프롬프트를 짤 필요가 없어집니다.",
+        caption:"대본, 제목, 썸네일 문구를 한 번에 생성하는 앱 화면", image:"" },
+      { title:"TTS 생성",
+        desc:"완성된 대본을 TTS로 변환해 나레이션을 만듭니다. 목소리 톤과 속도, 발음을 다듬어 영상에 자연스럽게 입힐 준비를 마칩니다.",
+        caption:"대본을 음성으로 변환하는 TTS 생성 화면", image:"" },
+      { title:"이미지, 영상 생성",
+        desc:"완성된 대본을 바탕으로 장면별 이미지와 영상을 생성합니다. 톤과 스타일을 일정하게 유지하는 것이 이 단계의 핵심입니다.",
+        caption:"대본 흐름에 맞춰 생성한 장면별 이미지", image:"" },
+      { title:"영상 편집",
+        desc:"생성한 소스를 타임라인에 올려 컷 편집, 자막, 배경음악까지 붙입니다. 속도감 있게 편집하는 몇 가지 원칙만 지키면 충분합니다.",
+        caption:"컷 편집과 자막이 배치된 타임라인 화면", image:"" },
+      { title:"영상 자막 오타 수정",
+        desc:"업로드 전 마지막 단계로 자동 생성된 자막의 오탈자와 어색한 문장을 한 번 더 점검합니다. 작은 오타 하나가 채널 신뢰도를 갉아먹습니다.",
+        caption:"업로드 전 마지막으로 점검하는 자막 오타 리스트", image:"" }
+    ]
+  };
+
+  function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+  /* ---------- image storage (IndexedDB) ----------
+     Uploaded photos are resized/compressed then stored here, not in
+     localStorage — localStorage has only a few MB of quota shared by the
+     whole page, which is what ran out after two photos. IndexedDB has a
+     much larger quota, so content.steps[i].image just holds the short
+     marker "local" and the actual bytes live here, keyed by step index. */
+  var IDB_NAME = "aisuho_yt_guide_images_v2";
+  var IDB_STORE = "images";
+  var idbPromise = null;
+  function openImageDB(){
+    if(idbPromise) return idbPromise;
+    idbPromise = new Promise(function(resolve, reject){
+      if(!("indexedDB" in window)){ reject(new Error("no indexeddb")); return; }
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+    return idbPromise;
+  }
+  function idbGet(key){
+    return openImageDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, "readonly");
+        var req = tx.objectStore(IDB_STORE).get(key);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+  function idbSet(key, value){
+    return openImageDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(value, key);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function idbDelete(key){
+    return openImageDB().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).delete(key);
+        tx.oncomplete = function(){ resolve(true); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    }).catch(function(){ return false; });
+  }
+  function stepImgKey(idx){ return "step-"+idx; }
 
 
-내 블로그 주소 백업  https://blog.naver.com/leerumi-
+  function mergeContent(incoming){
+    var merged = clone(DEFAULT_CONTENT);
+    if(incoming){
+      merged.hero = Object.assign({}, merged.hero, incoming.hero||{});
+      merged.footer = Object.assign({}, merged.footer, incoming.footer||{});
+      if(Array.isArray(incoming.steps) && incoming.steps.length){
+        merged.steps = merged.steps.map(function(s,i){
+          return Object.assign({}, s, incoming.steps[i]||{});
+        });
+      }
+    }
+    return merged;
+  }
 
-170*500 사이즈 누르면 내 홈페이지로 넘어가도록, "" 큰 따옴표 사이에 넣으면 됩니다.
-<a target="_blank"  href="https://blog.naver.com/leerumi-"><img src="https://postfiles.pstatic.net/MjAyNjA1MDNfODQg/MDAxNzc3NzkzNjg4NDg2.0OBXFiVgfz_IagGzzKJI3G4pe68ZO8vRGsdd_iwHRJkg.uX45W7Tz5SJGlE5HZFEjq4OD4dxyBfR41cK1iL30G8og.PNG/KakaoTalk_20260430_232248022_01.png?type=w966" /></a>
+  function loadContent(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return clone(DEFAULT_CONTENT);
+      return mergeContent(JSON.parse(raw));
+    }catch(e){ return clone(DEFAULT_CONTENT); }
+  }
 
+  var state = { content: loadContent() };
 
+  function syncFromCloud(){
+    if(!fbReady) return;
+    contentDocRef().get().then(function(doc){
+      if(doc.exists){
+        state.content = mergeContent(doc.data());
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content)); }catch(e){}
+        render();
+        if(document.getElementById("adminOverlay").classList.contains("open")) buildAdminForm();
+      }
+    }).catch(function(err){ console.warn("Firestore load failed:", err); });
+  }
 
+  function seededRand(seed){
+    var x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  }
 
-170*500
-https://postfiles.pstatic.net/MjAyNjA1MDNfODQg/MDAxNzc3NzkzNjg4NDg2.0OBXFiVgfz_IagGzzKJI3G4pe68ZO8vRGsdd_iwHRJkg.uX45W7Tz5SJGlE5HZFEjq4OD4dxyBfR41cK1iL30G8og.PNG/KakaoTalk_20260430_232248022_01.png?type=w966
+  function buildFrameVis(stepIndex){
+    var bars = "";
+    var n = 28;
+    for(var b=0;b<n;b++){
+      var h = 18 + Math.round(seededRand(stepIndex*97 + b*13) * 78);
+      bars += '<div class="bar" style="height:'+h+'%"></div>';
+    }
+    return bars;
+  }
 
-170*100  
-https://postfiles.pstatic.net/MjAyNjA1MDNfMjI4/MDAxNzc3NzkzNjI4Nzc3.4Br-pM-kLgoAfW32nIILcH449uCB3OSTWx3u9CpdQr4g.d93N1J4oi45RY6DGiyOQvttVGMuKw0SuUf8B2UbGXhkg.PNG/KakaoTalk_20260430_232248022.png?type=w966
+  function frameHtml(step, idx){
+    var num = idx+1;
+    var tag = num < 10 ? "0"+num : ""+num;
+    if(step.image === "local"){
+      // placeholder until hydrateLocalImages() fetches the real bytes from IndexedDB
+      return ''
+        + '<div class="frame-grid"></div>'
+        + '<div class="frame-vis">'+buildFrameVis(num)+'</div>'
+        + '<div class="frame-hud">'
+        +   '<div class="top"><span class="rd"></span>SCN '+tag+'</div>'
+        +   '<div class="bottom">00:'+tag+':00</div>'
+        + '</div>';
+    }
+    if(step.image && step.image.trim()){
+      return '<img src="'+escapeAttr(step.image)+'" alt="'+escapeAttr(step.caption||step.title)+'">';
+    }
+    return ''
+      + '<div class="frame-grid"></div>'
+      + '<div class="frame-vis">'+buildFrameVis(num)+'</div>'
+      + '<div class="frame-hud">'
+      +   '<div class="top"><span class="rd"></span>SCN '+tag+'</div>'
+      +   '<div class="bottom">00:'+tag+':00</div>'
+      + '</div>';
+  }
 
+  function escapeHtml(s){
+    return String(s==null?"":s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
 
-이동할 주소1
-<a target="_blank"  href="https://blog.naver.com/PostList.naver?blogId=leerumi-&from=postList&categoryNo=6"><img src="https://postfiles.pstatic.net/MjAyNjA1MDNfMjI4/MDAxNzc3NzkzNjI4Nzc3.4Br-pM-kLgoAfW32nIILcH449uCB3OSTWx3u9CpdQr4g.d93N1J4oi45RY6DGiyOQvttVGMuKw0SuUf8B2UbGXhkg.PNG/KakaoTalk_20260430_232248022.png?type=w966" /></a>
+  function hydrateLocalImages(){
+    state.content.steps.forEach(function(step, i){
+      if(step.image !== "local") return;
+      idbGet(stepImgKey(i)).then(function(dataUrl){
+        if(!dataUrl) return;
+        var frame = document.querySelector('.step[data-idx="'+i+'"] .frame-16x9');
+        if(frame) frame.innerHTML = '<img src="'+dataUrl+'" alt="'+escapeAttr(step.caption||step.title)+'">';
+      }).catch(function(){});
+    });
+  }
 
-이동할 주소2
-<a target="_blank"  href="https://blog.naver.com/PostList.naver?blogId=leerumi-&from=postList&categoryNo=17"><img src="https://postfiles.pstatic.net/MjAyNjA1MDNfMjI4/MDAxNzc3NzkzNjI4Nzc3.4Br-pM-kLgoAfW32nIILcH449uCB3OSTWx3u9CpdQr4g.d93N1J4oi45RY6DGiyOQvttVGMuKw0SuUf8B2UbGXhkg.PNG/KakaoTalk_20260430_232248022.png?type=w966" /></a>
+  function renderTimeline(){
+    var el = document.getElementById("timeline");
+    var html = "";
+    state.content.steps.forEach(function(step, i){
+      var tag = (i+1) < 10 ? "0"+(i+1) : ""+(i+1);
+      html += ''
+        + '<div class="step" data-idx="'+i+'">'
+        +   '<div class="step-num"><span class="dot"></span><span class="tc mono">'+tag+'</span></div>'
+        +   '<div class="step-body">'
+        +     '<h2>'+escapeHtml(step.title)+'</h2>'
+        +     '<p>'+escapeHtml(step.desc)+'</p>'
+        +     '<figure class="frame">'
+        +       '<div class="frame-16x9">'+frameHtml(step,i)+'</div>'
+        +       '<figcaption>'+escapeHtml(step.caption)+'</figcaption>'
+        +     '</figure>'
+        +   '</div>'
+        + '</div>';
+    });
+    el.innerHTML = html;
+    observeSteps();
+    hydrateLocalImages();
+  }
 
-이동할 주소3
-<a target="_blank"  href="https://blog.naver.com/PostList.naver?blogId=leerumi-&from=postList&categoryNo=8"><img src="https://postfiles.pstatic.net/MjAyNjA1MDNfMjI4/MDAxNzc3NzkzNjI4Nzc3.4Br-pM-kLgoAfW32nIILcH449uCB3OSTWx3u9CpdQr4g.d93N1J4oi45RY6DGiyOQvttVGMuKw0SuUf8B2UbGXhkg.PNG/KakaoTalk_20260430_232248022.png?type=w966" /></a>
+  function render(){
+    var c = state.content;
+    document.querySelector('[data-key="hero.eyebrowTopic"]').textContent = c.hero.eyebrowTopic;
+    document.querySelector('[data-key="hero.titleAccent"]').textContent = c.hero.titleAccent;
+    document.querySelector('[data-key="hero.lede"]').textContent = c.hero.lede;
+    var cta = document.getElementById("ctaLink");
+    cta.textContent = c.hero.ctaText;
+    cta.setAttribute("href", c.hero.ctaLink || "#");
+    document.querySelector('[data-key="footer.text"]').textContent = c.footer.text;
+    renderTimeline();
+  }
 
-이동할 주소4
-<a target="_blank"  href="https://blog.naver.com/PostList.naver?blogId=leerumi-&from=postList&categoryNo=10"><img src="https://postfiles.pstatic.net/MjAyNjA1MDNfMjI4/MDAxNzc3NzkzNjI4Nzc3.4Br-pM-kLgoAfW32nIILcH449uCB3OSTWx3u9CpdQr4g.d93N1J4oi45RY6DGiyOQvttVGMuKw0SuUf8B2UbGXhkg.PNG/KakaoTalk_20260430_232248022.png?type=w966" /></a>
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function observeSteps(){
+    var steps = document.querySelectorAll(".step");
+    if(reduceMotion || !("IntersectionObserver" in window)){
+      steps.forEach(function(s){ s.classList.add("in-view"); });
+      return;
+    }
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if(entry.isIntersecting){
+          entry.target.classList.add("in-view");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold:0.15 });
+    steps.forEach(function(s){ io.observe(s); });
+  }
 
-이동할 주소5
-<a target="_blank"  href="https://blog.naver.com/PostList.naver?blogId=leerumi-&from=postList&categoryNo=18"><img src="https://postfiles.pstatic.net/MjAyNjA1MDNfMjI4/MDAxNzc3NzkzNjI4Nzc3.4Br-pM-kLgoAfW32nIILcH449uCB3OSTWx3u9CpdQr4g.d93N1J4oi45RY6DGiyOQvttVGMuKw0SuUf8B2UbGXhkg.PNG/KakaoTalk_20260430_232248022.png?type=w966" /></a>
+  /* ---------- admin form ---------- */
+  function buildAdminForm(){
+    var body = document.getElementById("adminBody");
+    var c = state.content;
+    var html = '';
 
+    html += '<div class="admin-section"><h4>HERO</h4>'
+      + field("hero.eyebrowTopic","상단 라벨", c.hero.eyebrowTopic)
+      + field("hero.titleAccent","제목 강조 문구", c.hero.titleAccent)
+      + field("hero.lede","소개 문장", c.hero.lede, true)
+      + field("hero.ctaText","버튼 문구", c.hero.ctaText)
+      + field("hero.ctaLink","버튼 링크(URL)", c.hero.ctaLink)
+      + '</div>';
 
-다른 아이디로 도메인 등록 삭제 후 다른 아이디 netilfy에 연동하고 싶어 방법 알려 줘
+    c.steps.forEach(function(step, i){
+      var tag = (i+1)<10 ? "0"+(i+1) : ""+(i+1);
+      html += '<div class="admin-section"><h4>STEP '+tag+'</h4>'
+        + field("steps."+i+".title","제목", step.title)
+        + field("steps."+i+".desc","설명", step.desc, true)
+        + field("steps."+i+".caption","캡션", step.caption)
+        + imageField("steps."+i+".image","이미지", step.image, i)
+        + '</div>';
+    });
 
+    html += '<div class="admin-section"><h4>FOOTER</h4>'
+      + field("footer.text","하단 문구", c.footer.text)
+      + '</div>';
 
+    body.innerHTML = html;
 
-다른 Netlify 계정에서 도메인을 삭제했지만 여전히 "already managed by Netlify DNS on another team" 오류가 발생하는 경우, 아래 방법을 따라 해결할 수 있습니다.
+    // hydrate thumbnails for steps whose image lives in IndexedDB
+    c.steps.forEach(function(step, i){
+      if(step.image === "local"){
+        idbGet(stepImgKey(i)).then(function(dataUrl){ updateThumb(i, dataUrl || ""); });
+      }
+    });
 
-해결 방법
-1. 이전 계정에 접근 가능한 경우
-이전 계정의 DNS 페이지에서 해당 도메인의 DNS 존(zone) 을 삭제하세요. 사이트에서 도메인을 제거하는 것만으로는 부족하며, DNS 존 자체를 삭제해야 합니다. [domain error guide]
+    body.querySelectorAll("[data-path]").forEach(function(input){
+      input.addEventListener("input", function(){
+        setByPath(state.content, input.getAttribute("data-path"), input.value);
+        if(input.classList.contains("url-fallback")){
+          var idx = input.getAttribute("data-idx");
+          idbDelete(stepImgKey(idx)); // typing a URL overrides any locally stored photo
+          updateThumb(idx, input.value);
+        }
+      });
+    });
 
-2. 이전 계정에 접근 불가능한 경우 (도메인 소유권 인증)
-이전 계정에 접근할 수 없다면, 도메인 소유권 인증(DNS TXT 레코드) 방법을 사용해야 합니다. [DNS errors guide]
+    body.querySelectorAll('input[type="file"][data-idx]').forEach(function(fileInput){
+      fileInput.addEventListener("change", function(){
+        var idx = fileInput.getAttribute("data-idx");
+        var file = fileInput.files && fileInput.files[0];
+        if(!file) return;
+        if(!/^image\//.test(file.type)){
+          showToast("이미지 파일만 선택할 수 있습니다");
+          fileInput.value = "";
+          return;
+        }
+        resizeImageToBlob(file, 1600, 0.85, function(blob){
+          if(!blob){
+            showToast("이미지를 불러오지 못했습니다");
+            fileInput.value = "";
+            return;
+          }
+          updateThumb(idx, URL.createObjectURL(blob));
 
-절차:
+          if(!fbReady){
+            saveImageLocally(idx, blob, fileInput);
+            return;
+          }
+          var path = "images/step-"+idx+"-"+Date.now()+".jpg";
+          fbStorageRef.child(path).put(blob).then(function(snapshot){
+            return snapshot.ref.getDownloadURL();
+          }).then(function(url){
+            idbDelete(stepImgKey(idx));
+            setByPath(state.content, "steps."+idx+".image", url);
+            var urlInput = document.getElementById("f_steps_"+idx+"_image");
+            if(urlInput) urlInput.value = url;
+            updateThumb(idx, url);
+            fileInput.value = "";
+            showToast("이미지를 클라우드에 업로드했습니다");
+          }).catch(function(err){
+            console.warn("Storage upload failed:", err);
+            saveImageLocally(idx, blob, fileInput, true);
+            showToast("클라우드 업로드 실패 — 이 기기에만 저장됩니다 (Storage 설정을 확인하세요)");
+          });
+        });
+      });
+    });
 
-도메인 등록 업체(예: GoDaddy, Namecheap 등)의 DNS 설정에서 아래와 같은 TXT 레코드를 추가합니다:
-호스트명: verified-for-netlify.[도메인명]
-값: 오류 메시지 전체 (예: yourdomain.com or one of its subdomains is already managed by Netlify DNS on another team.)
-TXT 레코드 추가 후, Netlify 지원팀에 문의합니다.
-3. Netlify 지원팀에 직접 문의
-위 방법으로 해결되지 않으면 아래 경로로 지원 티켓을 제출하세요: [support form]
+    body.querySelectorAll(".img-clear[data-idx]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var idx = btn.getAttribute("data-idx");
+        idbDelete(stepImgKey(idx));
+        setByPath(state.content, "steps."+idx+".image", "");
+        var urlInput = document.getElementById("f_steps_"+idx+"_image");
+        if(urlInput) urlInput.value = "";
+        updateThumb(idx, "");
+      });
+    });
+  }
 
-URL: https://www.netlify.com/support/
-"What kind of help do you need?" 항목에서 "Another site is using this domain" 선택
-도메인명과 관련 정보를 함께 제공
-Netlify 지원팀이 이메일로 답변을 드릴 것입니다.
+  function updateThumb(idx, value){
+    var thumb = document.getElementById("thumb_"+idx);
+    if(!thumb) return;
+    thumb.innerHTML = (value && value.trim())
+      ? '<img src="'+escapeAttr(value)+'" alt="">'
+      : '<span>기본 그래픽</span>';
+  }
 
+  function resizeImageToBlob(file, maxDim, quality, cb){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var img = new Image();
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        var scale = Math.min(1, maxDim / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement("canvas");
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, cw, ch);
+        if(canvas.toBlob){
+          canvas.toBlob(function(blob){ cb(blob); }, "image/jpeg", quality);
+        }else{
+          try{
+            var dataUrl = canvas.toDataURL("image/jpeg", quality);
+            fetch(dataUrl).then(function(r){ return r.blob(); }).then(cb).catch(function(){ cb(null); });
+          }catch(err){ cb(null); }
+        }
+      };
+      img.onerror = function(){ cb(null); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function(){ cb(null); };
+    reader.readAsDataURL(file);
+  }
 
-Copy
+  function blobToDataURL(blob){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){ resolve(reader.result); };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
 
-Helpful
+  /* device-only fallback when there's no Firebase connection or the
+     cloud upload fails — keeps the admin panel usable either way */
+  function saveImageLocally(idx, blob, fileInput, silent){
+    return blobToDataURL(blob).then(function(dataUrl){
+      return idbSet(stepImgKey(idx), dataUrl).then(function(){
+        setByPath(state.content, "steps."+idx+".image", "local");
+        var urlInput = document.getElementById("f_steps_"+idx+"_image");
+        if(urlInput) urlInput.value = "";
+        updateThumb(idx, dataUrl);
+        if(fileInput) fileInput.value = "";
+        if(!silent) showToast("이 기기에만 저장됩니다");
+      });
+    });
+  }
 
-Not helpful
+  function field(path, label, value, isTextarea){
+    var id = "f_"+path.replace(/\./g,"_");
+    var v = escapeAttr(value);
+    if(isTextarea){
+      return '<div class="field"><label for="'+id+'">'+label+'</label>'
+        + '<textarea id="'+id+'" rows="3" data-path="'+path+'">'+escapeHtml(value)+'</textarea></div>';
+    }
+    return '<div class="field"><label for="'+id+'">'+label+'</label>'
+      + '<input type="text" id="'+id+'" data-path="'+path+'" value="'+v+'"></div>';
+  }
 
+  function imageField(path, label, value, idx){
+    var id = "f_"+path.replace(/\./g,"_");
+    var isLocal = value === "local";
+    var urlValue = isLocal ? "" : (value || "");
+    var thumbInner = isLocal
+      ? '<span>불러오는 중…</span>'
+      : (urlValue ? '<img src="'+escapeAttr(urlValue)+'" alt="">' : '<span>기본 그래픽</span>');
+    return '<div class="field">'
+      + '<label>'+label+'</label>'
+      + '<div class="img-row">'
+      +   '<div class="img-thumb" id="thumb_'+idx+'">'+thumbInner+'</div>'
+      +   '<div class="img-controls">'
+      +     '<label class="btn file-btn" for="file_'+idx+'">이미지 선택</label>'
+      +     '<input type="file" id="file_'+idx+'" data-idx="'+idx+'" accept="image/*" hidden>'
+      +     '<button type="button" class="btn img-clear" data-idx="'+idx+'">기본 그래픽으로</button>'
+      +   '</div>'
+      + '</div>'
+      + '<input type="text" class="url-fallback" id="'+id+'" data-path="'+path+'" data-idx="'+idx+'" '
+      +   'value="'+escapeAttr(urlValue)+'" placeholder="또는 이미지 URL 직접 입력">'
+      + (isLocal ? '<p class="img-note">기기에 저장된 이미지 사용 중</p>' : '')
+      + '</div>';
+  }
 
+  function setByPath(obj, path, value){
+    var parts = path.split(".");
+    var ref = obj;
+    for(var i=0;i<parts.length-1;i++){ ref = ref[parts[i]]; }
+    ref[parts[parts.length-1]] = value;
+  }
 
-Netlify 지원팀에 문의할 때 정확히 보내야 할 내용은 다음과 같습니다:
+  /* ---------- toast ---------- */
+  var toastTimer;
+  function showToast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
 
-지원 티켓 제출 시 필요한 정보
-지원 폼 접속: https://www.netlify.com/support/
-"What kind of help do you need?" → "Another site is using this domain" 선택
-메시지에 포함할 내용:
+  /* ---------- overlay helpers ---------- */
+  function open(id){ document.getElementById(id).classList.add("open"); }
+  function close(id){ document.getElementById(id).classList.remove("open"); }
 
-연동하려는 도메인명 (예: yourdomain.com)
-Netlify 사이트 이름 (예: yoursite.netlify.app)
-도메인 소유권 증명을 위해 추가한 TXT 레코드 정보:
-이름: verified-for-netlify
-값: 지원 티켓 번호 또는 해당 포럼 게시글 URL [support guide]
-TXT 레코드 추가 방법: 도메인 등록 업체(GoDaddy, Namecheap 등) DNS 설정에서 위 TXT 레코드를 먼저 추가한 뒤, 지원팀에 "TXT 레코드를 추가했으니 확인해 달라"고 알려주세요. [domain verification]
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape"){
+      document.querySelectorAll(".overlay.open").forEach(function(ov){ close(ov.id); });
+    }
+  });
 
-지원팀이 TXT 레코드를 확인한 후 도메인을 해제해 줄 것입니다.
+  /* ---------- admin trigger flow ---------- */
+  document.getElementById("adminTrigger").addEventListener("click", function(){
+    document.getElementById("pwInput").value = "";
+    document.getElementById("loginError").textContent = "";
+    open("loginOverlay");
+    setTimeout(function(){ document.getElementById("pwInput").focus(); }, 50);
+  });
+  document.getElementById("loginCancel").addEventListener("click", function(){ close("loginOverlay"); });
 
+  function sha256Hex(text){
+    var enc = new TextEncoder().encode(text);
+    return crypto.subtle.digest("SHA-256", enc).then(function(buf){
+      var bytes = Array.from(new Uint8Array(buf));
+      return bytes.map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    });
+  }
 
+  function tryLogin(){
+    var val = document.getElementById("pwInput").value;
+    var btn = document.getElementById("loginConfirm");
+    if(!val) return;
+    btn.disabled = true;
+    sha256Hex(val).then(function(hash){
+      btn.disabled = false;
+      if(hash === ADMIN_PASSWORD_HASH){
+        close("loginOverlay");
+        buildAdminForm();
+        open("adminOverlay");
+      }else{
+        document.getElementById("loginError").textContent = "비밀번호가 올바르지 않습니다.";
+      }
+    }).catch(function(){
+      btn.disabled = false;
+      document.getElementById("loginError").textContent = "이 브라우저에서는 로그인을 확인할 수 없습니다.";
+    });
+  }
+  document.getElementById("loginConfirm").addEventListener("click", tryLogin);
+  document.getElementById("pwInput").addEventListener("keydown", function(e){
+    if(e.key === "Enter") tryLogin();
+  });
 
+  /* ---------- basic right-click / view-source deterrent ----------
+     Note: this only discourages casual right-click users. It cannot stop
+     someone determined (devtools, Ctrl+U, mobile "view source" apps) —
+     the real protection is that the password itself is never stored in
+     plaintext above (only its SHA-256 hash). */
+  document.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 
-TXT 기록 추가 방법
-Netlify 지원을 먼저 만들어 보세요.
+  document.getElementById("adminClose").addEventListener("click", function(){ close("adminOverlay"); });
 
-https://www.netlify.com/support/ 에서 포트를 열면 케이스 번호(또는 링크)를 받을 수 있습니다.
-등록 호스트(예: Cloudflare, GoDaddy, Namecheap 등)에 로그인 하여 DNS 설정 페이지로 이동합니다.
+  document.getElementById("saveBtn").addEventListener("click", function(){
+    var btn = this;
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content));
+    }catch(err){
+      showToast("저장 용량이 가득 찼습니다. 이미지를 줄이거나 URL로 넣어주세요");
+      return;
+    }
+    render();
+    if(!fbReady){
+      showToast("저장했습니다 (이 기기에만 저장됨)");
+      return;
+    }
+    btn.disabled = true;
+    contentDocRef().set(state.content).then(function(){
+      btn.disabled = false;
+      showToast("저장했습니다 (클라우드 동기화 완료)");
+    }).catch(function(err){
+      btn.disabled = false;
+      console.warn("Firestore save failed:", err);
+      showToast("로컬에는 저장됐지만 클라우드 저장에 실패했습니다");
+    });
+  });
 
-TXT 기록을 추가 해야 합니다:
+  document.getElementById("exportBtn").addEventListener("click", function(){
+    var exportObj = clone(state.content);
+    var localIdx = [];
+    exportObj.steps.forEach(function(s, i){ if(s.image === "local") localIdx.push(i); });
+    Promise.all(localIdx.map(function(i){
+      return idbGet(stepImgKey(i)).then(function(dataUrl){ exportObj.steps[i].image = dataUrl || ""; });
+    })).then(function(){
+      var blob = new Blob([JSON.stringify(exportObj, null, 2)], {type:"application/json"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "yt-guide-content.json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("내보냈습니다");
+    }).catch(function(){
+      showToast("내보내기에 실패했습니다");
+    });
+  });
 
-이름(이름): verified-for-netlify
-TTL: 그렇죠(기본값)
-값(값/텍스트): 지원 케이스 번호 또는 링크
-추가 후, Netlify 지원에 대해 알려 드렸습니다. [ 지원안내 ]
+  document.getElementById("importBtn").addEventListener("click", function(){
+    document.getElementById("importFile").click();
+  });
+  document.getElementById("importFile").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try{
+        var parsed = JSON.parse(reader.result);
+        var merged = clone(DEFAULT_CONTENT);
+        merged.hero = Object.assign({}, merged.hero, parsed.hero||{});
+        merged.footer = Object.assign({}, merged.footer, parsed.footer||{});
+        if(Array.isArray(parsed.steps) && parsed.steps.length){
+          merged.steps = merged.steps.map(function(s,i){ return Object.assign({}, s, parsed.steps[i]||{}); });
+        }
+        var tasks = [];
+        merged.steps.forEach(function(s, i){
+          if(s.image && s.image.indexOf("data:") === 0){
+            tasks.push(idbSet(stepImgKey(i), s.image).then(function(){ merged.steps[i].image = "local"; }));
+          }
+        });
+        Promise.all(tasks).then(function(){
+          state.content = merged;
+          buildAdminForm();
+          render();
+          showToast("가져왔습니다");
+        });
+      }catch(err){
+        showToast("파일을 읽을 수 없습니다");
+      }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  });
 
-💡 일부 DNS 호스트는 이름이 있는 점( .)을 좋아합니다. 처음 시도하는 경우 verified-for-netlify.(점을 포함하여) 계속해서 노력하십시오. [ 지원안내 ]
+  document.getElementById("resetBtn").addEventListener("click", function(){ open("confirmOverlay"); });
+  document.getElementById("confirmCancel").addEventListener("click", function(){ close("confirmOverlay"); });
+  document.getElementById("confirmOk").addEventListener("click", function(){
+    localStorage.removeItem(STORAGE_KEY);
+    var deletions = DEFAULT_CONTENT.steps.map(function(_, i){ return idbDelete(stepImgKey(i)); });
+    Promise.all(deletions).catch(function(){}).then(function(){
+      state.content = clone(DEFAULT_CONTENT);
+      buildAdminForm();
+      render();
+      close("confirmOverlay");
+      if(fbReady){
+        contentDocRef().delete().then(function(){
+          showToast("초기화했습니다 (클라우드 포함)");
+        }).catch(function(){
+          showToast("초기화했습니다 (클라우드 삭제는 실패)");
+        });
+      }else{
+        showToast("초기화했습니다");
+      }
+    });
+  });
 
-
-복사
-
-도움이 되는
-
-도움이 되지 않음
+  render();
+  syncFromCloud();
+})();
+</script>
+</body>
+</html>
