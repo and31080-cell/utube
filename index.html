@@ -399,7 +399,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-firestore-compat.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.17.1/firebase-storage-compat.min.js"></script>
 
 <script>
 (function(){
@@ -409,10 +408,13 @@
   var ADMIN_PASSWORD_HASH = "675f3c31fdf3311d19a96037409e76d8d7abc715d8602add6cc188ea0f7e2fe0";
 
   /* ---------- Firebase (cloud persistence) ----------
-     Content edits and uploaded images are saved to Firestore / Storage so
-     they survive across devices and browsers (localStorage/IndexedDB
-     alone only ever lived on one device, and some in-app browsers wipe
-     that storage between visits — that's what "저장이 안 됐어" was). */
+     Content + photos are saved to Firestore only (no Cloud Storage) —
+     Storage now requires a billing-linked Blaze plan even for tiny free
+     usage, so photos are compressed and embedded directly as base64 in
+     each step's own Firestore document instead (Firestore stays free on
+     the Spark plan). Each document has a 1MiB cap, so every step gets
+     its OWN document ("site/step-0" ... "site/step-7") rather than one
+     giant combined document. */
   var FIREBASE_CONFIG = {
     apiKey: "AIzaSyDS0BT4bEDj5PjKAtzKIl1TDRh1gCk5sUo",
     authDomain: "utube-8a0f5.firebaseapp.com",
@@ -421,17 +423,18 @@
     messagingSenderId: "284125580414",
     appId: "1:284125580414:web:2e3ad371061ddf27559c2f"
   };
-  var fbDb = null, fbStorageRef = null, fbReady = false;
+  var fbDb = null, fbReady = false;
   try{
     if(typeof firebase !== "undefined" && firebase.initializeApp){
       firebase.initializeApp(FIREBASE_CONFIG);
       fbDb = firebase.firestore();
-      fbStorageRef = firebase.storage().ref();
       fbReady = true;
     }
   }catch(e){ fbReady = false; }
 
-  function contentDocRef(){ return fbDb.collection("site").doc("content"); }
+  function siteCollectionRef(){ return fbDb.collection("site"); }
+  function stepDocId(idx){ return "step-"+idx; }
+  var IMAGE_BYTE_BUDGET = 550000; // keeps base64'd image + text safely under Firestore's 1MiB/doc cap
 
   var DEFAULT_CONTENT = {
     hero:{
@@ -472,59 +475,6 @@
 
   function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
-  /* ---------- image storage (IndexedDB) ----------
-     Uploaded photos are resized/compressed then stored here, not in
-     localStorage — localStorage has only a few MB of quota shared by the
-     whole page, which is what ran out after two photos. IndexedDB has a
-     much larger quota, so content.steps[i].image just holds the short
-     marker "local" and the actual bytes live here, keyed by step index. */
-  var IDB_NAME = "aisuho_yt_guide_images_v2";
-  var IDB_STORE = "images";
-  var idbPromise = null;
-  function openImageDB(){
-    if(idbPromise) return idbPromise;
-    idbPromise = new Promise(function(resolve, reject){
-      if(!("indexedDB" in window)){ reject(new Error("no indexeddb")); return; }
-      var req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
-      req.onsuccess = function(){ resolve(req.result); };
-      req.onerror = function(){ reject(req.error); };
-    });
-    return idbPromise;
-  }
-  function idbGet(key){
-    return openImageDB().then(function(db){
-      return new Promise(function(resolve, reject){
-        var tx = db.transaction(IDB_STORE, "readonly");
-        var req = tx.objectStore(IDB_STORE).get(key);
-        req.onsuccess = function(){ resolve(req.result || null); };
-        req.onerror = function(){ reject(req.error); };
-      });
-    });
-  }
-  function idbSet(key, value){
-    return openImageDB().then(function(db){
-      return new Promise(function(resolve, reject){
-        var tx = db.transaction(IDB_STORE, "readwrite");
-        tx.objectStore(IDB_STORE).put(value, key);
-        tx.oncomplete = function(){ resolve(true); };
-        tx.onerror = function(){ reject(tx.error); };
-      });
-    });
-  }
-  function idbDelete(key){
-    return openImageDB().then(function(db){
-      return new Promise(function(resolve, reject){
-        var tx = db.transaction(IDB_STORE, "readwrite");
-        tx.objectStore(IDB_STORE).delete(key);
-        tx.oncomplete = function(){ resolve(true); };
-        tx.onerror = function(){ reject(tx.error); };
-      });
-    }).catch(function(){ return false; });
-  }
-  function stepImgKey(idx){ return "step-"+idx; }
-
-
   function mergeContent(incoming){
     var merged = clone(DEFAULT_CONTENT);
     if(incoming){
@@ -539,6 +489,15 @@
     return merged;
   }
 
+  /* Local cache is TEXT ONLY (images stripped out) so it can never hit
+     localStorage's few-MB quota again — actual images always come from
+     Firestore. This is just a fast first-paint before syncFromCloud(). */
+  function stripImages(content){
+    var c = clone(content);
+    c.steps = c.steps.map(function(s){ return Object.assign({}, s, {image:""}); });
+    return c;
+  }
+
   function loadContent(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -551,13 +510,23 @@
 
   function syncFromCloud(){
     if(!fbReady) return;
-    contentDocRef().get().then(function(doc){
-      if(doc.exists){
-        state.content = mergeContent(doc.data());
-        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content)); }catch(e){}
-        render();
-        if(document.getElementById("adminOverlay").classList.contains("open")) buildAdminForm();
-      }
+    siteCollectionRef().get().then(function(snapshot){
+      if(snapshot.empty) return;
+      var meta = null;
+      var stepsById = {};
+      snapshot.forEach(function(doc){
+        if(doc.id === "meta") meta = doc.data();
+        else if(/^step-\d+$/.test(doc.id)) stepsById[doc.id] = doc.data();
+      });
+      var incoming = {
+        hero: meta && meta.hero,
+        footer: meta && meta.footer,
+        steps: DEFAULT_CONTENT.steps.map(function(_, i){ return stepsById[stepDocId(i)] || null; })
+      };
+      state.content = mergeContent(incoming);
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(stripImages(state.content))); }catch(e){}
+      render();
+      if(document.getElementById("adminOverlay").classList.contains("open")) buildAdminForm();
     }).catch(function(err){ console.warn("Firestore load failed:", err); });
   }
 
@@ -579,16 +548,6 @@
   function frameHtml(step, idx){
     var num = idx+1;
     var tag = num < 10 ? "0"+num : ""+num;
-    if(step.image === "local"){
-      // placeholder until hydrateLocalImages() fetches the real bytes from IndexedDB
-      return ''
-        + '<div class="frame-grid"></div>'
-        + '<div class="frame-vis">'+buildFrameVis(num)+'</div>'
-        + '<div class="frame-hud">'
-        +   '<div class="top"><span class="rd"></span>SCN '+tag+'</div>'
-        +   '<div class="bottom">00:'+tag+':00</div>'
-        + '</div>';
-    }
     if(step.image && step.image.trim()){
       return '<img src="'+escapeAttr(step.image)+'" alt="'+escapeAttr(step.caption||step.title)+'">';
     }
@@ -606,17 +565,6 @@
       .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   }
   function escapeAttr(s){ return escapeHtml(s).replace(/"/g,"&quot;"); }
-
-  function hydrateLocalImages(){
-    state.content.steps.forEach(function(step, i){
-      if(step.image !== "local") return;
-      idbGet(stepImgKey(i)).then(function(dataUrl){
-        if(!dataUrl) return;
-        var frame = document.querySelector('.step[data-idx="'+i+'"] .frame-16x9');
-        if(frame) frame.innerHTML = '<img src="'+dataUrl+'" alt="'+escapeAttr(step.caption||step.title)+'">';
-      }).catch(function(){});
-    });
-  }
 
   function renderTimeline(){
     var el = document.getElementById("timeline");
@@ -638,7 +586,6 @@
     });
     el.innerHTML = html;
     observeSteps();
-    hydrateLocalImages();
   }
 
   function render(){
@@ -701,20 +648,11 @@
 
     body.innerHTML = html;
 
-    // hydrate thumbnails for steps whose image lives in IndexedDB
-    c.steps.forEach(function(step, i){
-      if(step.image === "local"){
-        idbGet(stepImgKey(i)).then(function(dataUrl){ updateThumb(i, dataUrl || ""); });
-      }
-    });
-
     body.querySelectorAll("[data-path]").forEach(function(input){
       input.addEventListener("input", function(){
         setByPath(state.content, input.getAttribute("data-path"), input.value);
         if(input.classList.contains("url-fallback")){
-          var idx = input.getAttribute("data-idx");
-          idbDelete(stepImgKey(idx)); // typing a URL overrides any locally stored photo
-          updateThumb(idx, input.value);
+          updateThumb(input.getAttribute("data-idx"), input.value);
         }
       });
     });
@@ -729,33 +667,20 @@
           fileInput.value = "";
           return;
         }
-        resizeImageToBlob(file, 1600, 0.85, function(blob){
+        showToast("이미지 준비 중…");
+        resizeToBudget(file, IMAGE_BYTE_BUDGET, function(blob){
           if(!blob){
             showToast("이미지를 불러오지 못했습니다");
             fileInput.value = "";
             return;
           }
-          updateThumb(idx, URL.createObjectURL(blob));
-
-          if(!fbReady){
-            saveImageLocally(idx, blob, fileInput);
-            return;
-          }
-          var path = "images/step-"+idx+"-"+Date.now()+".jpg";
-          fbStorageRef.child(path).put(blob).then(function(snapshot){
-            return snapshot.ref.getDownloadURL();
-          }).then(function(url){
-            idbDelete(stepImgKey(idx));
-            setByPath(state.content, "steps."+idx+".image", url);
+          blobToDataURL(blob).then(function(dataUrl){
+            setByPath(state.content, "steps."+idx+".image", dataUrl);
             var urlInput = document.getElementById("f_steps_"+idx+"_image");
-            if(urlInput) urlInput.value = url;
-            updateThumb(idx, url);
+            if(urlInput) urlInput.value = "";
+            updateThumb(idx, dataUrl);
             fileInput.value = "";
-            showToast("이미지를 클라우드에 업로드했습니다");
-          }).catch(function(err){
-            console.warn("Storage upload failed:", err);
-            saveImageLocally(idx, blob, fileInput, true);
-            showToast("클라우드 업로드 실패 — 이 기기에만 저장됩니다 (Storage 설정을 확인하세요)");
+            showToast("이미지를 준비했습니다 — 저장을 눌러야 반영됩니다");
           });
         });
       });
@@ -764,7 +689,6 @@
     body.querySelectorAll(".img-clear[data-idx]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var idx = btn.getAttribute("data-idx");
-        idbDelete(stepImgKey(idx));
         setByPath(state.content, "steps."+idx+".image", "");
         var urlInput = document.getElementById("f_steps_"+idx+"_image");
         if(urlInput) urlInput.value = "";
@@ -781,26 +705,45 @@
       : '<span>기본 그래픽</span>';
   }
 
-  function resizeImageToBlob(file, maxDim, quality, cb){
+  /* Compresses/resizes the photo, then — if it's still over the byte
+     budget — tries progressively smaller size/quality combos until it
+     fits (or gives up after the last, smallest attempt). This keeps each
+     step's Firestore document safely under the 1MiB-per-document cap
+     once the image is embedded as base64 alongside the step's text. */
+  function resizeToBudget(file, maxBytes, cb){
+    var attempts = [
+      {maxDim:1400, quality:0.75},
+      {maxDim:1200, quality:0.65},
+      {maxDim:1000, quality:0.6},
+      {maxDim:800,  quality:0.55},
+      {maxDim:640,  quality:0.5}
+    ];
     var reader = new FileReader();
     reader.onload = function(e){
       var img = new Image();
       img.onload = function(){
-        var w = img.width, h = img.height;
-        var scale = Math.min(1, maxDim / Math.max(w, h));
-        var cw = Math.max(1, Math.round(w * scale));
-        var ch = Math.max(1, Math.round(h * scale));
-        var canvas = document.createElement("canvas");
-        canvas.width = cw; canvas.height = ch;
-        var ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, cw, ch);
-        if(canvas.toBlob){
-          canvas.toBlob(function(blob){ cb(blob); }, "image/jpeg", quality);
-        }else{
-          try{
-            var dataUrl = canvas.toDataURL("image/jpeg", quality);
-            fetch(dataUrl).then(function(r){ return r.blob(); }).then(cb).catch(function(){ cb(null); });
-          }catch(err){ cb(null); }
+        tryAttempt(0);
+        function tryAttempt(i){
+          if(i >= attempts.length){ cb(null); return; }
+          var opt = attempts[i];
+          var scale = Math.min(1, opt.maxDim / Math.max(img.width, img.height));
+          var cw = Math.max(1, Math.round(img.width*scale));
+          var ch = Math.max(1, Math.round(img.height*scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = cw; canvas.height = ch;
+          canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+          var finish = function(blob){
+            if(!blob){ tryAttempt(i+1); return; }
+            if(blob.size <= maxBytes || i === attempts.length-1){ cb(blob); }
+            else{ tryAttempt(i+1); }
+          };
+          if(canvas.toBlob){
+            canvas.toBlob(finish, "image/jpeg", opt.quality);
+          }else{
+            try{
+              fetch(canvas.toDataURL("image/jpeg", opt.quality)).then(function(r){ return r.blob(); }).then(finish).catch(function(){ tryAttempt(i+1); });
+            }catch(err){ tryAttempt(i+1); }
+          }
         }
       };
       img.onerror = function(){ cb(null); };
@@ -819,21 +762,6 @@
     });
   }
 
-  /* device-only fallback when there's no Firebase connection or the
-     cloud upload fails — keeps the admin panel usable either way */
-  function saveImageLocally(idx, blob, fileInput, silent){
-    return blobToDataURL(blob).then(function(dataUrl){
-      return idbSet(stepImgKey(idx), dataUrl).then(function(){
-        setByPath(state.content, "steps."+idx+".image", "local");
-        var urlInput = document.getElementById("f_steps_"+idx+"_image");
-        if(urlInput) urlInput.value = "";
-        updateThumb(idx, dataUrl);
-        if(fileInput) fileInput.value = "";
-        if(!silent) showToast("이 기기에만 저장됩니다");
-      });
-    });
-  }
-
   function field(path, label, value, isTextarea){
     var id = "f_"+path.replace(/\./g,"_");
     var v = escapeAttr(value);
@@ -847,11 +775,8 @@
 
   function imageField(path, label, value, idx){
     var id = "f_"+path.replace(/\./g,"_");
-    var isLocal = value === "local";
-    var urlValue = isLocal ? "" : (value || "");
-    var thumbInner = isLocal
-      ? '<span>불러오는 중…</span>'
-      : (urlValue ? '<img src="'+escapeAttr(urlValue)+'" alt="">' : '<span>기본 그래픽</span>');
+    var urlValue = value || "";
+    var thumbInner = urlValue ? '<img src="'+escapeAttr(urlValue)+'" alt="">' : '<span>기본 그래픽</span>';
     return '<div class="field">'
       + '<label>'+label+'</label>'
       + '<div class="img-row">'
@@ -864,7 +789,6 @@
       + '</div>'
       + '<input type="text" class="url-fallback" id="'+id+'" data-path="'+path+'" data-idx="'+idx+'" '
       +   'value="'+escapeAttr(urlValue)+'" placeholder="또는 이미지 URL 직접 입력">'
-      + (isLocal ? '<p class="img-note">기기에 저장된 이미지 사용 중</p>' : '')
       + '</div>';
   }
 
@@ -904,12 +828,85 @@
   });
   document.getElementById("loginCancel").addEventListener("click", function(){ close("loginOverlay"); });
 
+  /* Pure-JS SHA-256 fallback — crypto.subtle requires a "secure context"
+     (https, or localhost). Many mobile browsers do NOT treat a locally
+     opened file:// page as secure, so crypto.subtle is undefined there
+     and login silently breaks. This fallback keeps login working either
+     way. (Standard FIPS 180-4 algorithm, tested against known vectors.) */
+  function sha256PureJS(message){
+    var K = [
+      0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+    ];
+    var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    function rotr(x,n){ return (x>>>n) | (x<<(32-n)); }
+    var bytes = [];
+    for(var i=0;i<message.length;i++){
+      var c = message.charCodeAt(i);
+      if(c < 0x80){ bytes.push(c); }
+      else if(c < 0x800){
+        bytes.push(0xc0 | (c>>6), 0x80 | (c & 0x3f));
+      }else if(c >= 0xd800 && c <= 0xdbff && i+1 < message.length){
+        var c2 = message.charCodeAt(++i);
+        var cp = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00);
+        bytes.push(0xf0 | (cp>>18), 0x80 | ((cp>>12)&0x3f), 0x80 | ((cp>>6)&0x3f), 0x80 | (cp & 0x3f));
+      }else{
+        bytes.push(0xe0 | (c>>12), 0x80 | ((c>>6)&0x3f), 0x80 | (c & 0x3f));
+      }
+    }
+    var bitLen = bytes.length * 8;
+    bytes.push(0x80);
+    while(bytes.length % 64 !== 56) bytes.push(0);
+    bytes = bytes.concat([0,0,0,0, (bitLen>>>24)&0xff, (bitLen>>>16)&0xff, (bitLen>>>8)&0xff, bitLen&0xff]);
+
+    for(var chunkStart=0; chunkStart<bytes.length; chunkStart+=64){
+      var w = new Array(64);
+      for(var t=0;t<16;t++){
+        w[t] = ((bytes[chunkStart+t*4]<<24) | (bytes[chunkStart+t*4+1]<<16) | (bytes[chunkStart+t*4+2]<<8) | (bytes[chunkStart+t*4+3])) >>> 0;
+      }
+      for(var t2a=16;t2a<64;t2a++){
+        var s0 = rotr(w[t2a-15],7) ^ rotr(w[t2a-15],18) ^ (w[t2a-15]>>>3);
+        var s1 = rotr(w[t2a-2],17) ^ rotr(w[t2a-2],19) ^ (w[t2a-2]>>>10);
+        w[t2a] = (w[t2a-16] + s0 + w[t2a-7] + s1) >>> 0;
+      }
+      var a=H[0],b=H[1],c2v=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+      for(var t3=0;t3<64;t3++){
+        var S1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+        var ch = (e & f) ^ ((~e) & g);
+        var temp1 = (h + S1 + ch + K[t3] + w[t3]) >>> 0;
+        var S0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+        var maj = (a & b) ^ (a & c2v) ^ (b & c2v);
+        var temp2 = (S0 + maj) >>> 0;
+        h=g; g=f; f=e; e=(d+temp1)>>>0;
+        d=c2v; c2v=b; b=a; a=(temp1+temp2)>>>0;
+      }
+      H[0]=(H[0]+a)>>>0; H[1]=(H[1]+b)>>>0; H[2]=(H[2]+c2v)>>>0; H[3]=(H[3]+d)>>>0;
+      H[4]=(H[4]+e)>>>0; H[5]=(H[5]+f)>>>0; H[6]=(H[6]+g)>>>0; H[7]=(H[7]+h)>>>0;
+    }
+    var hex = "";
+    for(var idx=0; idx<8; idx++){ hex += ("00000000" + H[idx].toString(16)).slice(-8); }
+    return hex;
+  }
+
   function sha256Hex(text){
-    var enc = new TextEncoder().encode(text);
-    return crypto.subtle.digest("SHA-256", enc).then(function(buf){
-      var bytes = Array.from(new Uint8Array(buf));
-      return bytes.map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
-    });
+    try{
+      if(window.crypto && window.crypto.subtle && window.crypto.subtle.digest){
+        var enc = new TextEncoder().encode(text);
+        return crypto.subtle.digest("SHA-256", enc).then(function(buf){
+          var bytes = Array.from(new Uint8Array(buf));
+          return bytes.map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+        }).catch(function(){
+          return sha256PureJS(text);
+        });
+      }
+    }catch(e){ /* fall through to pure-JS version below */ }
+    return Promise.resolve(sha256PureJS(text));
   }
 
   function tryLogin(){
@@ -917,7 +914,9 @@
     var btn = document.getElementById("loginConfirm");
     if(!val) return;
     btn.disabled = true;
-    sha256Hex(val).then(function(hash){
+    Promise.resolve().then(function(){
+      return sha256Hex(val);
+    }).then(function(hash){
       btn.disabled = false;
       if(hash === ADMIN_PASSWORD_HASH){
         close("loginOverlay");
@@ -926,9 +925,10 @@
       }else{
         document.getElementById("loginError").textContent = "비밀번호가 올바르지 않습니다.";
       }
-    }).catch(function(){
+    }).catch(function(err){
       btn.disabled = false;
       document.getElementById("loginError").textContent = "이 브라우저에서는 로그인을 확인할 수 없습니다.";
+      console.warn(err);
     });
   }
   document.getElementById("loginConfirm").addEventListener("click", tryLogin);
@@ -948,18 +948,23 @@
   document.getElementById("saveBtn").addEventListener("click", function(){
     var btn = this;
     try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.content));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripImages(state.content)));
     }catch(err){
-      showToast("저장 용량이 가득 찼습니다. 이미지를 줄이거나 URL로 넣어주세요");
+      showToast("저장에 실패했습니다");
       return;
     }
     render();
     if(!fbReady){
-      showToast("저장했습니다 (이 기기에만 저장됨)");
+      showToast("저장했습니다 (이 기기에만 저장됨 — 파이어베이스 연결 안 됨)");
       return;
     }
     btn.disabled = true;
-    contentDocRef().set(state.content).then(function(){
+    var batch = fbDb.batch();
+    batch.set(siteCollectionRef().doc("meta"), { hero: state.content.hero, footer: state.content.footer });
+    state.content.steps.forEach(function(step, i){
+      batch.set(siteCollectionRef().doc(stepDocId(i)), step);
+    });
+    batch.commit().then(function(){
       btn.disabled = false;
       showToast("저장했습니다 (클라우드 동기화 완료)");
     }).catch(function(err){
@@ -970,22 +975,13 @@
   });
 
   document.getElementById("exportBtn").addEventListener("click", function(){
-    var exportObj = clone(state.content);
-    var localIdx = [];
-    exportObj.steps.forEach(function(s, i){ if(s.image === "local") localIdx.push(i); });
-    Promise.all(localIdx.map(function(i){
-      return idbGet(stepImgKey(i)).then(function(dataUrl){ exportObj.steps[i].image = dataUrl || ""; });
-    })).then(function(){
-      var blob = new Blob([JSON.stringify(exportObj, null, 2)], {type:"application/json"});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = "yt-guide-content.json";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast("내보냈습니다");
-    }).catch(function(){
-      showToast("내보내기에 실패했습니다");
-    });
+    var blob = new Blob([JSON.stringify(state.content, null, 2)], {type:"application/json"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "yt-guide-content.json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("내보냈습니다");
   });
 
   document.getElementById("importBtn").addEventListener("click", function(){
@@ -998,24 +994,10 @@
     reader.onload = function(){
       try{
         var parsed = JSON.parse(reader.result);
-        var merged = clone(DEFAULT_CONTENT);
-        merged.hero = Object.assign({}, merged.hero, parsed.hero||{});
-        merged.footer = Object.assign({}, merged.footer, parsed.footer||{});
-        if(Array.isArray(parsed.steps) && parsed.steps.length){
-          merged.steps = merged.steps.map(function(s,i){ return Object.assign({}, s, parsed.steps[i]||{}); });
-        }
-        var tasks = [];
-        merged.steps.forEach(function(s, i){
-          if(s.image && s.image.indexOf("data:") === 0){
-            tasks.push(idbSet(stepImgKey(i), s.image).then(function(){ merged.steps[i].image = "local"; }));
-          }
-        });
-        Promise.all(tasks).then(function(){
-          state.content = merged;
-          buildAdminForm();
-          render();
-          showToast("가져왔습니다");
-        });
+        state.content = mergeContent(parsed);
+        buildAdminForm();
+        render();
+        showToast("가져왔습니다 — 저장을 눌러야 반영됩니다");
       }catch(err){
         showToast("파일을 읽을 수 없습니다");
       }
@@ -1028,22 +1010,22 @@
   document.getElementById("confirmCancel").addEventListener("click", function(){ close("confirmOverlay"); });
   document.getElementById("confirmOk").addEventListener("click", function(){
     localStorage.removeItem(STORAGE_KEY);
-    var deletions = DEFAULT_CONTENT.steps.map(function(_, i){ return idbDelete(stepImgKey(i)); });
-    Promise.all(deletions).catch(function(){}).then(function(){
-      state.content = clone(DEFAULT_CONTENT);
-      buildAdminForm();
-      render();
-      close("confirmOverlay");
-      if(fbReady){
-        contentDocRef().delete().then(function(){
-          showToast("초기화했습니다 (클라우드 포함)");
-        }).catch(function(){
-          showToast("초기화했습니다 (클라우드 삭제는 실패)");
-        });
-      }else{
-        showToast("초기화했습니다");
-      }
-    });
+    state.content = clone(DEFAULT_CONTENT);
+    buildAdminForm();
+    render();
+    close("confirmOverlay");
+    if(fbReady){
+      var batch = fbDb.batch();
+      batch.delete(siteCollectionRef().doc("meta"));
+      DEFAULT_CONTENT.steps.forEach(function(_, i){ batch.delete(siteCollectionRef().doc(stepDocId(i))); });
+      batch.commit().then(function(){
+        showToast("초기화했습니다 (클라우드 포함)");
+      }).catch(function(){
+        showToast("초기화했습니다 (클라우드 삭제는 실패)");
+      });
+    }else{
+      showToast("초기화했습니다");
+    }
   });
 
   render();
